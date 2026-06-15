@@ -2,14 +2,23 @@ import base64
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="BOS Image Analysis")
 
+COLORMAPS = {
+    "JET": cv2.COLORMAP_JET,
+    "TURBO": cv2.COLORMAP_TURBO,
+    "VIRIDIS": cv2.COLORMAP_VIRIDIS,
+}
 
-def run_bos(ref_bytes: bytes, test_bytes: bytes) -> dict:
+# Threshold (0-255) above which a pixel counts as "disturbed" for coverage.
+COVERAGE_THRESHOLD = 30
+
+
+def run_bos(ref_bytes: bytes, test_bytes: bytes, colormap: str = "JET") -> dict:
     ref_arr = np.frombuffer(ref_bytes, np.uint8)
     test_arr = np.frombuffer(test_bytes, np.uint8)
 
@@ -27,14 +36,25 @@ def run_bos(ref_bytes: bytes, test_bytes: bytes) -> dict:
 
     diff = cv2.absdiff(ref_gray, test_gray)
     diff_vis = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    diff_color = cv2.applyColorMap(diff_vis, cv2.COLORMAP_JET)
+
+    cmap = COLORMAPS.get(colormap.upper(), cv2.COLORMAP_JET)
+    diff_color = cv2.applyColorMap(diff_vis, cmap)
 
     _, gray_buf = cv2.imencode(".png", diff_vis)
     _, color_buf = cv2.imencode(".png", diff_color)
 
+    # Statistics computed on the raw difference (0-255), not the normalized view.
+    total = diff.size
+    coverage = float(np.count_nonzero(diff > COVERAGE_THRESHOLD)) / total * 100.0
+
     return {
         "grayscale": base64.b64encode(gray_buf).decode(),
         "color": base64.b64encode(color_buf).decode(),
+        "stats": {
+            "max": int(diff.max()),
+            "mean": round(float(diff.mean()), 2),
+            "coverage": round(coverage, 2),
+        },
     }
 
 
@@ -47,11 +67,12 @@ async def root():
 async def analyze(
     reference: UploadFile = File(...),
     test: UploadFile = File(...),
+    colormap: str = Form("JET"),
 ):
     ref_bytes = await reference.read()
     test_bytes = await test.read()
     try:
-        result = run_bos(ref_bytes, test_bytes)
+        result = run_bos(ref_bytes, test_bytes, colormap)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return result

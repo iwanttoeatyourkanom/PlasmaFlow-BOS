@@ -7,12 +7,24 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:     #000000;
+      --card:   #111114;
+      --inset:  #050507;
+      --border: #26262e;
+      --text:   #e6e6ea;
+      --muted:  #8a8a96;
+      --dim:    #55555f;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+    }
+
     body {
       font-family: system-ui, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      padding: 2rem 1rem;
+      padding: 2.5rem 1rem;
     }
 
     h1 {
@@ -20,13 +32,13 @@
       font-size: 1.6rem;
       font-weight: 600;
       margin-bottom: 0.25rem;
-      color: #f8fafc;
+      color: #fff;
     }
 
     .subtitle {
       text-align: center;
       font-size: 0.85rem;
-      color: #64748b;
+      color: var(--muted);
       margin-bottom: 2rem;
     }
 
@@ -40,17 +52,17 @@
 
     .drop-zone {
       width: 300px;
-      border: 2px dashed #334155;
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.25rem;
       cursor: pointer;
       transition: border-color 0.2s, background 0.2s;
-      background: #1e2535;
+      background: var(--card);
     }
 
     .drop-zone:hover, .drop-zone.over {
-      border-color: #6366f1;
-      background: #1e2840;
+      border-color: var(--accent);
+      background: #16161d;
     }
 
     .drop-zone label {
@@ -59,7 +71,7 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: #94a3b8;
+      color: var(--muted);
       margin-bottom: 0.75rem;
     }
 
@@ -68,7 +80,7 @@
     .preview-box {
       width: 100%;
       height: 160px;
-      background: #0f1117;
+      background: var(--inset);
       border-radius: 6px;
       display: flex;
       align-items: center;
@@ -84,7 +96,7 @@
     }
 
     .preview-box .placeholder {
-      color: #475569;
+      color: var(--dim);
       font-size: 0.8rem;
       text-align: center;
       line-height: 1.6;
@@ -92,11 +104,41 @@
 
     .file-name {
       font-size: 0.75rem;
-      color: #64748b;
+      color: var(--muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    .controls {
+      display: flex;
+      gap: 0.6rem;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+
+    .controls label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .controls select {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .controls select:hover { border-color: var(--accent); }
+    .controls select:focus { outline: none; border-color: var(--accent); }
 
     .btn-row {
       display: flex;
@@ -105,7 +147,7 @@
     }
 
     button#analyzeBtn {
-      background: #6366f1;
+      background: var(--accent);
       color: #fff;
       border: none;
       border-radius: 8px;
@@ -116,70 +158,200 @@
       transition: background 0.2s, opacity 0.2s;
     }
 
-    button#analyzeBtn:hover:not(:disabled) { background: #4f46e5; }
-    button#analyzeBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+    button#analyzeBtn:hover:not(:disabled) { background: var(--accent-hover); }
+    button#analyzeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     #status {
       text-align: center;
       font-size: 0.85rem;
-      color: #94a3b8;
+      color: var(--muted);
       min-height: 1.4rem;
       margin-bottom: 1.5rem;
     }
 
     #status.error { color: #f87171; }
 
-    #results {
-      display: none;
-      gap: 1.5rem;
-      justify-content: center;
+    /* ===================== RESULT VIEW (full screen) ===================== */
+    #resultView { display: none; }
+    /* When showing results, hide the upload view and let results fill the page */
+    body.results-mode #uploadView { display: none; }
+    body.results-mode #resultView { display: flex; }
+
+    #resultView {
+      flex-direction: column;
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .rv-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
       flex-wrap: wrap;
     }
 
-    #results.visible { display: flex; }
+    .back-btn {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 1.1rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .back-btn:hover { border-color: var(--accent); background: #16161d; }
 
-    .result-card {
-      background: #1e2535;
-      border-radius: 10px;
-      padding: 1rem;
-      width: 340px;
+    .rv-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #fff;
     }
 
-    .result-card h3 {
-      font-size: 0.8rem;
+    .rv-stats {
+      display: flex;
+      gap: 0.6rem;
+      margin-left: auto;
+    }
+
+    .stat {
+      min-width: 96px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      text-align: center;
+    }
+
+    .stat .stat-val {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent-hover);
+      line-height: 1.1;
+    }
+
+    .stat .stat-unit {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-left: 1px;
+    }
+
+    .stat .stat-label {
+      display: block;
+      margin-top: 0.2rem;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    /* Two big output panels side by side, filling the page width */
+    .rv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 900px) {
+      .rv-grid { grid-template-columns: 1fr; }
+      .rv-stats { margin-left: 0; width: 100%; }
+      .rv-stats .stat { flex: 1; }
+    }
+
+    .rv-panel {
+      display: flex;
+      flex-direction: column;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .rv-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .rv-panel-head h3 {
+      font-size: 0.85rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: #94a3b8;
-      margin-bottom: 0.75rem;
+      color: var(--muted);
     }
 
-    .result-card img {
-      width: 100%;
-      border-radius: 6px;
-      display: block;
-      margin-bottom: 0.75rem;
-    }
-
-    .result-card a {
-      display: inline-block;
-      background: #334155;
-      color: #e2e8f0;
+    .rv-panel-head a {
+      flex-shrink: 0;
+      background: var(--inset);
+      color: var(--text);
+      border: 1px solid var(--border);
       text-decoration: none;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       padding: 0.4rem 1rem;
       border-radius: 6px;
-      transition: background 0.2s;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .rv-panel-head a:hover { background: #1a1a22; border-color: var(--accent); }
+
+    /* Large image stage — fills the panel, scales image up to most of the viewport */
+    .rv-stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      background: var(--inset);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      min-height: 0;
     }
 
-    .result-card a:hover { background: #475569; }
+    .rv-stage img {
+      max-width: 100%;
+      max-height: 72vh;
+      object-fit: contain;
+      display: block;
+    }
+
+    .color-stage img { flex: 0 1 auto; }
+
+    .colorbar {
+      align-self: stretch;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      max-height: 72vh;
+    }
+
+    .colorbar .bar {
+      flex: 1;
+      width: 18px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      /* gradient set per colormap from JS; JET as default */
+      background: linear-gradient(to top,
+        #00007f 0%, #0000ff 12%, #007fff 25%, #00ffff 37%,
+        #7fff7f 50%, #ffff00 62%, #ff7f00 75%, #ff0000 87%, #7f0000 100%);
+    }
 
     .spinner {
       display: inline-block;
       width: 14px;
       height: 14px;
-      border: 2px solid #ffffff44;
-      border-top-color: #fff;
+      border: 2px solid #ffffff33;
+      border-top-color: var(--accent-hover);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       vertical-align: middle;
@@ -191,45 +363,84 @@
 </head>
 <body>
 
-  <h1>BOS Image Analysis</h1>
-  <p class="subtitle">Background-Oriented Schlieren — upload reference &amp; test images to visualize density differences</p>
+  <!-- ============ UPLOAD VIEW ============ -->
+  <div id="uploadView">
+    <h1>BOS Image Analysis</h1>
+    <p class="subtitle">Upload reference &amp; test images to visualize density differences</p>
 
-  <div class="upload-row">
-    <div class="drop-zone" id="refZone">
-      <label>Reference image (no flame)</label>
-      <div class="preview-box" id="refPreviewBox">
-        <span class="placeholder">Click or drag &amp; drop<br/>PNG / JPG / BMP</span>
+    <div class="upload-row">
+      <div class="drop-zone" id="refZone">
+        <label>Reference image</label>
+        <div class="preview-box" id="refPreviewBox">
+          <span class="placeholder">Click or drag &amp; drop<br/>PNG / JPG / BMP</span>
+        </div>
+        <div class="file-name" id="refFileName">No file chosen</div>
+        <input type="file" id="refInput" accept="image/*" />
       </div>
-      <div class="file-name" id="refFileName">No file chosen</div>
-      <input type="file" id="refInput" accept="image/*" />
+
+      <div class="drop-zone" id="testZone">
+        <label>Test image</label>
+        <div class="preview-box" id="testPreviewBox">
+          <span class="placeholder">Click or drag &amp; drop<br/>PNG / JPG / BMP</span>
+        </div>
+        <div class="file-name" id="testFileName">No file chosen</div>
+        <input type="file" id="testInput" accept="image/*" />
+      </div>
     </div>
 
-    <div class="drop-zone" id="testZone">
-      <label>Test image (with flame)</label>
-      <div class="preview-box" id="testPreviewBox">
-        <span class="placeholder">Click or drag &amp; drop<br/>PNG / JPG / BMP</span>
-      </div>
-      <div class="file-name" id="testFileName">No file chosen</div>
-      <input type="file" id="testInput" accept="image/*" />
+    <div class="controls">
+      <label for="colormapSel">Colormap</label>
+      <select id="colormapSel">
+        <option value="JET">JET</option>
+        <option value="TURBO">TURBO</option>
+        <option value="VIRIDIS">VIRIDIS</option>
+      </select>
     </div>
+
+    <div class="btn-row">
+      <button id="analyzeBtn" disabled>Analyze</button>
+    </div>
+
+    <div id="status"></div>
   </div>
 
-  <div class="btn-row">
-    <button id="analyzeBtn" disabled>Analyze</button>
-  </div>
-
-  <div id="status"></div>
-
-  <div id="results">
-    <div class="result-card">
-      <h3>Grayscale difference</h3>
-      <img id="grayImg" src="" alt="Grayscale diff" />
-      <a id="grayDl" download="diff_grayscale.png">Download PNG</a>
+  <!-- ============ RESULT VIEW (full screen) ============ -->
+  <div id="resultView">
+    <div class="rv-bar">
+      <button id="backBtn" class="back-btn">Back</button>
+      <div class="rv-title">Analysis result</div>
+      <div class="rv-stats">
+        <div class="stat"><div class="stat-val" id="statMax">–</div><span class="stat-label">Max diff (0–255)</span></div>
+        <div class="stat"><div class="stat-val" id="statMean">–</div><span class="stat-label">Mean diff (0–255)</span></div>
+        <div class="stat"><div class="stat-val" id="statCoverage">–</div><span class="stat-label">Coverage (diff&gt;30)</span></div>
+      </div>
     </div>
-    <div class="result-card">
-      <h3>Pseudo-color (JET colormap)</h3>
-      <img id="colorImg" src="" alt="Color diff" />
-      <a id="colorDl" download="diff_color.png">Download PNG</a>
+
+    <div class="rv-grid">
+      <div class="rv-panel">
+        <div class="rv-panel-head">
+          <h3>Grayscale difference</h3>
+          <a id="grayDl" download="diff_grayscale.png">Download PNG</a>
+        </div>
+        <div class="rv-stage">
+          <img id="grayImg" src="" alt="Grayscale diff" />
+        </div>
+      </div>
+
+      <div class="rv-panel">
+        <div class="rv-panel-head">
+          <h3>Pseudo-color (<span id="colorCmapName">JET</span> colormap)</h3>
+          <a id="colorDl" download="diff_color.png">Download PNG</a>
+        </div>
+        <div class="rv-stage color-stage">
+          <img id="colorImg" src="" alt="Color diff" />
+          <div class="colorbar">
+            <span>high</span>
+            <div class="bar" id="colorbarBar"></div>
+            <span>low</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -238,7 +449,29 @@
     const testInput   = document.getElementById('testInput');
     const analyzeBtn  = document.getElementById('analyzeBtn');
     const statusEl    = document.getElementById('status');
-    const resultsEl   = document.getElementById('results');
+    const colormapSel = document.getElementById('colormapSel');
+    const backBtn     = document.getElementById('backBtn');
+
+    // Switch back from the full-screen result view to the upload view.
+    backBtn.addEventListener('click', () => {
+      document.body.classList.remove('results-mode');
+      window.scrollTo(0, 0);
+    });
+
+    // CSS gradients approximating each OpenCV colormap (low → high).
+    const COLORBARS = {
+      JET: 'linear-gradient(to top, #00007f 0%, #0000ff 12%, #007fff 25%, #00ffff 37%, #7fff7f 50%, #ffff00 62%, #ff7f00 75%, #ff0000 87%, #7f0000 100%)',
+      TURBO: 'linear-gradient(to top, #30123b 0%, #4145ab 12%, #4675ed 25%, #39a2fc 37%, #1bcfd4 50%, #4bf57d 62%, #a4fc3b 75%, #f0ba38 82%, #f56918 90%, #ce2a13 96%, #7a0403 100%)',
+      VIRIDIS: 'linear-gradient(to top, #440154 0%, #443983 25%, #31688e 50%, #21918c 62%, #35b779 75%, #90d743 87%, #fde725 100%)',
+    };
+
+    function applyColorbar(name) {
+      document.getElementById('colorbarBar').style.background = COLORBARS[name] || COLORBARS.JET;
+    }
+
+    // Keep the colorbar preview in sync with the selector before analyzing.
+    colormapSel.addEventListener('change', () => applyColorbar(colormapSel.value));
+    applyColorbar(colormapSel.value);
 
     function setupZone(zoneId, inputEl, previewBoxId, fileNameId) {
       const zone = document.getElementById(zoneId);
@@ -291,12 +524,14 @@
     analyzeBtn.addEventListener('click', async () => {
       statusEl.className = '';
       statusEl.innerHTML = '<span class="spinner"></span>Analyzing…';
-      resultsEl.classList.remove('visible');
       analyzeBtn.disabled = true;
+
+      const selectedCmap = colormapSel.value;
 
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
       fd.append('test',      testInput.files[0]);
+      fd.append('colormap',  selectedCmap);
 
       try {
         const res = await fetch('/analyze', { method: 'POST', body: fd });
@@ -316,8 +551,21 @@
         grayDl.href  = grayImg.src;
         colorDl.href = colorImg.src;
 
+        // Statistics — Max/Mean are 8-bit intensity (0–255), Coverage is a percentage
+        if (data.stats) {
+          document.getElementById('statMax').innerHTML      = `${data.stats.max}<span class="stat-unit">/255</span>`;
+          document.getElementById('statMean').innerHTML     = `${data.stats.mean}<span class="stat-unit">/255</span>`;
+          document.getElementById('statCoverage').innerHTML = `${data.stats.coverage}<span class="stat-unit">%</span>`;
+        }
+
+        // Sync colorbar + label to the colormap actually used for this result
+        document.getElementById('colorCmapName').textContent = selectedCmap;
+        applyColorbar(selectedCmap);
+
         statusEl.textContent = 'Analysis complete.';
-        resultsEl.classList.add('visible');
+        // Jump to the full-screen result view
+        document.body.classList.add('results-mode');
+        window.scrollTo(0, 0);
       } catch (err) {
         statusEl.className = 'error';
         statusEl.textContent = `Error: ${err.message}`;

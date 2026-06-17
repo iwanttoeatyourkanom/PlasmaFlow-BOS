@@ -143,6 +143,61 @@
     .controls select:hover { border-color: var(--accent); }
     .controls select:focus { outline: none; border-color: var(--accent); }
 
+    /* Sensitivity controls */
+    .sensitivity { gap: 1.5rem; margin-bottom: 0.75rem; }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      align-items: flex-start;
+    }
+
+    .ctrl-group input[type="range"] {
+      width: 150px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .ctrl-num {
+      color: var(--accent-hover);
+      font-weight: 600;
+      margin-left: 0.3rem;
+    }
+
+    .ctrl-default {
+      font-size: 0.7rem;
+      color: var(--dim);
+      font-weight: 400;
+      letter-spacing: normal;
+      text-transform: none;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.78rem;
+      color: var(--text);
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 0.74rem;
+      color: var(--dim);
+      margin-bottom: 1.25rem;
+    }
+
     .btn-row {
       display: flex;
       justify-content: center;
@@ -369,7 +424,7 @@
   <!-- ============ UPLOAD VIEW ============ -->
   <div id="uploadView">
     <h1>BOS Image Analysis</h1>
-    <p class="subtitle">Upload reference &amp; test images to visualize density differences</p>
+    <p class="subtitle">Upload reference & test images to visualize refractive index changes</p>
 
     <div class="upload-row">
       <div class="drop-zone" id="refZone">
@@ -400,6 +455,26 @@
       </select>
     </div>
 
+    <!-- Sensitivity controls — useful for weak signals like He gas -->
+    <div class="controls sensitivity">
+      <div class="ctrl-group">
+        <label for="gainSlider">Gain <span id="gainVal" class="ctrl-num">1.0×</span> <span class="ctrl-default">(default: 1.0×)</span></label>
+        <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
+      </div>
+
+      <div class="ctrl-group">
+        <label for="threshSlider">Threshold <span id="threshVal" class="ctrl-num">30</span> <span class="ctrl-default">(default: 30)</span></label>
+        <input type="range" id="threshSlider" min="5" max="80" step="1" value="30" />
+      </div>
+
+      <label class="checkbox-label">
+        <input type="checkbox" id="claheChk" />
+        CLAHE (enhance faint detail)
+      </label>
+    </div>
+
+    <p class="hint">Tip: for a weak signal (e.g. He), raise Gain and enable CLAHE, and lower the Threshold.</p>
+
     <div class="btn-row">
       <button id="analyzeBtn" disabled>Analyze</button>
     </div>
@@ -411,11 +486,11 @@
   <div id="resultView">
     <div class="rv-bar">
       <button id="backBtn" class="back-btn">Back</button>
-      <div class="rv-title">Analysis result</div>
+      <div class="rv-title">Result</div>
       <div class="rv-stats">
         <div class="stat"><div class="stat-val" id="statMax">–</div><span class="stat-label">Max diff (0–255)</span></div>
         <div class="stat"><div class="stat-val" id="statMean">–</div><span class="stat-label">Mean diff (0–255)</span></div>
-        <div class="stat"><div class="stat-val" id="statCoverage">–</div><span class="stat-label">Coverage (diff&gt;30)</span></div>
+        <div class="stat"><div class="stat-val" id="statCoverage">–</div><span class="stat-label" id="statCoverageLabel">Coverage (diff&gt;30)</span></div>
       </div>
     </div>
 
@@ -454,6 +529,19 @@
     const statusEl    = document.getElementById('status');
     const colormapSel = document.getElementById('colormapSel');
     const backBtn     = document.getElementById('backBtn');
+    const gainSlider  = document.getElementById('gainSlider');
+    const threshSlider= document.getElementById('threshSlider');
+    const claheChk    = document.getElementById('claheChk');
+    const gainVal     = document.getElementById('gainVal');
+    const threshVal   = document.getElementById('threshVal');
+
+    // Live-update the numeric labels next to each slider.
+    gainSlider.addEventListener('input', () => {
+      gainVal.textContent = parseFloat(gainSlider.value).toFixed(1) + '×';
+    });
+    threshSlider.addEventListener('input', () => {
+      threshVal.textContent = threshSlider.value;
+    });
 
     // Switch back from the full-screen result view to the upload view.
     backBtn.addEventListener('click', () => {
@@ -535,6 +623,9 @@
       fd.append('reference', refInput.files[0]);
       fd.append('test',      testInput.files[0]);
       fd.append('colormap',  selectedCmap);
+      fd.append('gain',      gainSlider.value);
+      fd.append('threshold', threshSlider.value);
+      fd.append('use_clahe', claheChk.checked);
 
       try {
         const res = await fetch('/analyze', { method: 'POST', body: fd });
@@ -559,6 +650,7 @@
           document.getElementById('statMax').innerHTML      = `${data.stats.max}<span class="stat-unit">/255</span>`;
           document.getElementById('statMean').innerHTML     = `${data.stats.mean}<span class="stat-unit">/255</span>`;
           document.getElementById('statCoverage').innerHTML = `${data.stats.coverage}<span class="stat-unit">%</span>`;
+          document.getElementById('statCoverageLabel').innerHTML = `Coverage (diff&gt;${threshSlider.value})`;
         }
 
         // Sync colorbar + label to the colormap actually used for this result

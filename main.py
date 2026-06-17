@@ -14,11 +14,32 @@ COLORMAPS = {
     "VIRIDIS": cv2.COLORMAP_VIRIDIS,
 }
 
-# Threshold (0-255) above which a pixel counts as "disturbed" for coverage.
-COVERAGE_THRESHOLD = 30
+# Default threshold (0-255) above which a pixel counts as "disturbed" for
+# coverage. Can be overridden per-request from the UI.
+DEFAULT_COVERAGE_THRESHOLD = 30
+
+# Gaussian blur kernel size to reduce sensor noise before differencing.
+# Must be odd. Larger = more smoothing.
+BLUR_KERNEL = (5, 5)
 
 
-def run_bos(ref_bytes: bytes, test_bytes: bytes, colormap: str = "JET") -> dict:
+def run_bos(
+    ref_bytes: bytes,
+    test_bytes: bytes,
+    colormap: str = "JET",
+    gain: float = 1.0,
+    use_clahe: bool = False,
+    threshold: int = DEFAULT_COVERAGE_THRESHOLD,
+) -> dict:
+    """Compute a BOS difference image.
+
+    gain      : multiplies the raw difference before display. >1 boosts a weak
+                signal (e.g. He, which barely bends light). Applied to the
+                display image only; statistics stay on the true difference.
+    use_clahe : apply local contrast enhancement to the display image so faint
+                structure becomes visible. Display-only; does not affect stats.
+    threshold : 0-255 cutoff for the coverage statistic.
+    """
     ref_arr = np.frombuffer(ref_bytes, np.uint8)
     test_arr = np.frombuffer(test_bytes, np.uint8)
 
@@ -34,8 +55,30 @@ def run_bos(ref_bytes: bytes, test_bytes: bytes, colormap: str = "JET") -> dict:
     ref_gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
     test_gray = cv2.cvtColor(test, cv2.COLOR_BGR2GRAY)
 
+    # Reduce sensor noise before differencing so small per-pixel noise does
+    # not show up as fake flow.
+    ref_gray = cv2.GaussianBlur(ref_gray, BLUR_KERNEL, 0)
+    test_gray = cv2.GaussianBlur(test_gray, BLUR_KERNEL, 0)
+
     diff = cv2.absdiff(ref_gray, test_gray)
-    diff_vis = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+    # ---- Build the DISPLAY image ----
+    # Baseline: min-max normalize to use the full 0-255 display range. This is
+    # what makes a normal-strength plume clearly visible.
+    diff_disp = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+    # Optional gain: multiply on top of the normalized image to push faint
+    # mid-tones brighter. Helpful for weak signals (e.g. He) where the
+    # interesting structure sits low in the range. Clips at 255.
+    if gain != 1.0:
+        diff_disp = np.clip(diff_disp.astype(np.float32) * gain, 0, 255).astype(np.uint8)
+
+    # Optional CLAHE: local contrast enhancement to pull out faint detail.
+    if use_clahe:
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        diff_disp = clahe.apply(diff_disp)
+
+    diff_vis = diff_disp
 
     cmap = COLORMAPS.get(colormap.upper(), cv2.COLORMAP_JET)
     diff_color = cv2.applyColorMap(diff_vis, cmap)
@@ -43,9 +86,10 @@ def run_bos(ref_bytes: bytes, test_bytes: bytes, colormap: str = "JET") -> dict:
     _, gray_buf = cv2.imencode(".png", diff_vis)
     _, color_buf = cv2.imencode(".png", diff_color)
 
-    # Statistics computed on the raw difference (0-255), not the normalized view.
+    # Statistics computed on the raw difference (0-255), not the display view,
+    # so they reflect the true measured signal regardless of gain/CLAHE.
     total = diff.size
-    coverage = float(np.count_nonzero(diff > COVERAGE_THRESHOLD)) / total * 100.0
+    coverage = float(np.count_nonzero(diff > threshold)) / total * 100.0
 
     return {
         "grayscale": base64.b64encode(gray_buf).decode(),
@@ -68,11 +112,21 @@ async def analyze(
     reference: UploadFile = File(...),
     test: UploadFile = File(...),
     colormap: str = Form("JET"),
+    gain: float = Form(1.0),
+    use_clahe: bool = Form(False),
+    threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
 ):
     ref_bytes = await reference.read()
     test_bytes = await test.read()
     try:
-        result = run_bos(ref_bytes, test_bytes, colormap)
+        result = run_bos(
+            ref_bytes,
+            test_bytes,
+            colormap,
+            gain=gain,
+            use_clahe=use_clahe,
+            threshold=threshold,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return result

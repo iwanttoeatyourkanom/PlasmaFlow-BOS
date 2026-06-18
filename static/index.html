@@ -144,7 +144,7 @@
     .controls select:focus { outline: none; border-color: var(--accent); }
 
     /* Sensitivity controls */
-    .sensitivity { gap: 1.5rem; margin-bottom: 0.75rem; }
+    .sensitivity { gap: 1.5rem; margin-bottom: 0.75rem; align-items: flex-start; }
 
     .ctrl-group {
       display: flex;
@@ -173,6 +173,17 @@
       text-transform: none;
     }
 
+    .ctrl-desc {
+      font-size: 0.68rem;
+      color: var(--dim);
+      line-height: 1.5;
+      max-width: 160px;
+      margin-top: 0.05rem;
+      text-transform: none;
+      letter-spacing: normal;
+      font-weight: 400;
+    }
+
     .checkbox-label {
       display: flex;
       align-items: center;
@@ -195,7 +206,9 @@
       text-align: center;
       font-size: 0.74rem;
       color: var(--dim);
-      margin-bottom: 1.25rem;
+      margin: 0 auto 1.25rem;
+      max-width: 560px;
+      line-height: 1.6;
     }
 
     .btn-row {
@@ -308,6 +321,35 @@
     }
 
     /* Two big output panels side by side, filling the page width */
+    .rv-params {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .rv-param {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.75rem;
+    }
+
+    .rv-param-key {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.65rem;
+    }
+
+    .rv-param-val {
+      color: var(--accent-hover);
+      font-weight: 700;
+    }
+
     .rv-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -447,12 +489,14 @@
     </div>
 
     <div class="controls">
-      <label for="colormapSel">Colormap</label>
-      <select id="colormapSel">
-        <option value="JET">JET</option>
-        <option value="TURBO">TURBO</option>
-        <option value="VIRIDIS">VIRIDIS</option>
-      </select>
+      <div class="ctrl-group">
+        <label for="colormapSel">Colormap</label>
+        <select id="colormapSel">
+          <option value="JET">JET</option>
+          <option value="TURBO">TURBO</option>
+          <option value="VIRIDIS">VIRIDIS</option>
+        </select>
+      </div>
     </div>
 
     <!-- Sensitivity controls — useful for weak signals like He gas -->
@@ -460,20 +504,24 @@
       <div class="ctrl-group">
         <label for="gainSlider">Gain <span id="gainVal" class="ctrl-num">1.0×</span> <span class="ctrl-default">(default: 1.0×)</span></label>
         <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
+        <span class="ctrl-desc">Makes the image brighter so faint flow (like He gas) is easier to see. Only changes how the image looks, not the numbers.</span>
       </div>
 
       <div class="ctrl-group">
         <label for="threshSlider">Threshold <span id="threshVal" class="ctrl-num">30</span> <span class="ctrl-default">(default: 30)</span></label>
         <input type="range" id="threshSlider" min="5" max="80" step="1" value="30" />
+        <span class="ctrl-desc">Sets how strong a pixel must be to count as "flow" in the Coverage % number. Higher = stricter.</span>
       </div>
 
-      <label class="checkbox-label">
-        <input type="checkbox" id="claheChk" />
-        CLAHE (enhance faint detail)
-      </label>
+      <div class="ctrl-group">
+        <label for="floorSlider">Noise floor <span id="floorVal" class="ctrl-num">0</span> <span class="ctrl-default">(default: 0 = off)</span></label>
+        <input type="range" id="floorSlider" min="0" max="60" step="1" value="0" />
+        <span class="ctrl-desc">Hides weak background noise by blacking out low pixels, so only the real flow shows. Only changes how the image looks, not the numbers.</span>
+      </div>
+
     </div>
 
-    <p class="hint">Tip: for a weak signal (e.g. He), raise Gain and enable CLAHE, and lower the Threshold.</p>
+    <p class="hint">Tip: Raise the Noise floor to clean up a noisy background (e.g. camera or lighting noise). Raise the Gain to see weak flow more clearly (e.g. He gas). Keep the Threshold the same when comparing experiments (e.g. Ar vs He).</p>
 
     <div class="btn-row">
       <button id="analyzeBtn" disabled>Analyze</button>
@@ -492,6 +540,13 @@
         <div class="stat"><div class="stat-val" id="statMean">–</div><span class="stat-label">Mean diff (0–255)</span></div>
         <div class="stat"><div class="stat-val" id="statCoverage">–</div><span class="stat-label" id="statCoverageLabel">Coverage (diff&gt;30)</span></div>
       </div>
+    </div>
+
+    <div class="rv-params">
+      <div class="rv-param"><span class="rv-param-key">Colormap</span><span class="rv-param-val" id="paramColormap">–</span></div>
+      <div class="rv-param"><span class="rv-param-key">Gain</span><span class="rv-param-val" id="paramGain">–</span></div>
+      <div class="rv-param"><span class="rv-param-key">Threshold</span><span class="rv-param-val" id="paramThreshold">–</span></div>
+      <div class="rv-param"><span class="rv-param-key">Noise floor</span><span class="rv-param-val" id="paramFloor">–</span></div>
     </div>
 
     <div class="rv-grid">
@@ -531,9 +586,10 @@
     const backBtn     = document.getElementById('backBtn');
     const gainSlider  = document.getElementById('gainSlider');
     const threshSlider= document.getElementById('threshSlider');
-    const claheChk    = document.getElementById('claheChk');
+    const floorSlider = document.getElementById('floorSlider');
     const gainVal     = document.getElementById('gainVal');
     const threshVal   = document.getElementById('threshVal');
+    const floorVal    = document.getElementById('floorVal');
 
     // Live-update the numeric labels next to each slider.
     gainSlider.addEventListener('input', () => {
@@ -541,6 +597,9 @@
     });
     threshSlider.addEventListener('input', () => {
       threshVal.textContent = threshSlider.value;
+    });
+    floorSlider.addEventListener('input', () => {
+      floorVal.textContent = floorSlider.value;
     });
 
     // Switch back from the full-screen result view to the upload view.
@@ -625,7 +684,7 @@
       fd.append('colormap',  selectedCmap);
       fd.append('gain',      gainSlider.value);
       fd.append('threshold', threshSlider.value);
-      fd.append('use_clahe', claheChk.checked);
+      fd.append('noise_floor', floorSlider.value);
 
       try {
         const res = await fetch('/analyze', { method: 'POST', body: fd });
@@ -656,6 +715,12 @@
         // Sync colorbar + label to the colormap actually used for this result
         document.getElementById('colorCmapName').textContent = selectedCmap;
         applyColorbar(selectedCmap);
+
+        // Show the settings used for this analysis
+        document.getElementById('paramColormap').textContent  = selectedCmap;
+        document.getElementById('paramGain').textContent      = parseFloat(gainSlider.value).toFixed(1) + '×';
+        document.getElementById('paramThreshold').textContent = threshSlider.value;
+        document.getElementById('paramFloor').textContent     = floorSlider.value === '0' ? 'off' : floorSlider.value;
 
         statusEl.textContent = 'Analysis complete.';
         // Jump to the full-screen result view

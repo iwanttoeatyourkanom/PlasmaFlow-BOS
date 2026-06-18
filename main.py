@@ -28,17 +28,19 @@ def run_bos(
     test_bytes: bytes,
     colormap: str = "JET",
     gain: float = 1.0,
-    use_clahe: bool = False,
     threshold: int = DEFAULT_COVERAGE_THRESHOLD,
+    noise_floor: int = 0,
 ) -> dict:
     """Compute a BOS difference image.
 
-    gain      : multiplies the raw difference before display. >1 boosts a weak
-                signal (e.g. He, which barely bends light). Applied to the
-                display image only; statistics stay on the true difference.
-    use_clahe : apply local contrast enhancement to the display image so faint
-                structure becomes visible. Display-only; does not affect stats.
-    threshold : 0-255 cutoff for the coverage statistic.
+    gain        : multiplies the raw difference before display. >1 boosts a weak
+                  signal (e.g. He, which barely bends light). Applied to the
+                  display image only; statistics stay on the true difference.
+    threshold   : 0-255 cutoff for the coverage statistic.
+    noise_floor : 0-255 cutoff applied to the DISPLAY image. Any pixel whose raw
+                  difference is at or below this value is forced to 0 (clean
+                  background), so only stronger signal survives. Display-only;
+                  statistics stay on the true difference.
     """
     ref_arr = np.frombuffer(ref_bytes, np.uint8)
     test_arr = np.frombuffer(test_bytes, np.uint8)
@@ -62,21 +64,25 @@ def run_bos(
 
     diff = cv2.absdiff(ref_gray, test_gray)
 
-    # ---- Build the DISPLAY image ----
+    # Noise floor: zero out everything at or below the floor on the raw diff so
+    # weak background noise becomes clean (dark) and only stronger signal
+    # survives into the display image. Done before normalize so the surviving
+    # signal still stretches across the full display range.
+    if noise_floor > 0:
+        diff_floored = diff.copy()
+        diff_floored[diff_floored <= noise_floor] = 0
+    else:
+        diff_floored = diff
+
     # Baseline: min-max normalize to use the full 0-255 display range. This is
     # what makes a normal-strength plume clearly visible.
-    diff_disp = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    diff_disp = cv2.normalize(diff_floored, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
     # Optional gain: multiply on top of the normalized image to push faint
     # mid-tones brighter. Helpful for weak signals (e.g. He) where the
     # interesting structure sits low in the range. Clips at 255.
     if gain != 1.0:
         diff_disp = np.clip(diff_disp.astype(np.float32) * gain, 0, 255).astype(np.uint8)
-
-    # Optional CLAHE: local contrast enhancement to pull out faint detail.
-    if use_clahe:
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        diff_disp = clahe.apply(diff_disp)
 
     diff_vis = diff_disp
 
@@ -87,7 +93,7 @@ def run_bos(
     _, color_buf = cv2.imencode(".png", diff_color)
 
     # Statistics computed on the raw difference (0-255), not the display view,
-    # so they reflect the true measured signal regardless of gain/CLAHE.
+    # so they reflect the true measured signal regardless of gain.
     total = diff.size
     coverage = float(np.count_nonzero(diff > threshold)) / total * 100.0
 
@@ -113,8 +119,8 @@ async def analyze(
     test: UploadFile = File(...),
     colormap: str = Form("JET"),
     gain: float = Form(1.0),
-    use_clahe: bool = Form(False),
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
+    noise_floor: int = Form(0),
 ):
     ref_bytes = await reference.read()
     test_bytes = await test.read()
@@ -124,8 +130,8 @@ async def analyze(
             test_bytes,
             colormap,
             gain=gain,
-            use_clahe=use_clahe,
             threshold=threshold,
+            noise_floor=noise_floor,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

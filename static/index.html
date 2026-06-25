@@ -3,736 +3,448 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BOS Image Analysis</title>
+  <title>BOS Gas-Flow Visualization</title>
+  
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:     #000000;
-      --card:   #111114;
-      --inset:  #050507;
-      --border: #26262e;
-      --text:   #e6e6ea;
-      --muted:  #8a8a96;
-      --dim:    #55555f;
-      --accent: #6366f1;
-      --accent-hover: #818cf8;
+      --bg: #09090b; --card: #18181b; --inset: #000000; --border: #27272a; --border-hover: #3f3f46;
+      --text: #f4f4f5; --muted: #a1a1aa; --accent: #4f46e5; --accent-hover: #4338ca;
+      --radius-lg: 16px; --radius-md: 10px;
     }
 
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 2.5rem 1rem;
-    }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 3rem 1rem; line-height: 1.5; }
 
-    h1 {
-      text-align: center;
-      font-size: 1.6rem;
-      font-weight: 600;
-      margin-bottom: 0.25rem;
-      color: #fff;
-    }
+    .header { text-align: center; margin-bottom: 3rem; }
+    .header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; margin-bottom: 0.5rem; }
+    .header p { font-size: 0.95rem; color: var(--muted); }
 
-    .subtitle {
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--muted);
-      margin-bottom: 2rem;
-    }
+    .container { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .card-header { margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;}
+    .card-title { font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text); }
+    .card-desc { font-size: 0.75rem; color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: normal;}
 
-    .upload-row {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 1.5rem;
-    }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    @media (max-width: 768px) { .grid-2, .grid-4 { grid-template-columns: 1fr; } }
 
-    .drop-zone {
-      width: 300px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.25rem;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      background: var(--card);
-    }
-
-    .drop-zone:hover, .drop-zone.over {
-      border-color: var(--accent);
-      background: #16161d;
-    }
-
-    .drop-zone label {
-      display: block;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 0.75rem;
-    }
-
+    .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s ease; background: var(--inset); display: flex; flex-direction: column; gap: 1rem; }
+    .drop-zone:hover, .drop-zone.over { border-color: var(--accent); background: rgba(79, 70, 229, 0.05); }
     .drop-zone input[type="file"] { display: none; }
+    .preview-box { width: 100%; height: 180px; background: var(--card); border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .preview-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .placeholder { color: var(--muted); font-size: 0.85rem; }
+    .file-name { font-size: 0.8rem; font-weight: 500; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .preview-box {
-      width: 100%;
-      height: 160px;
-      background: var(--inset);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      margin-bottom: 0.75rem;
-    }
+    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .form-group label { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+    .input-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.4; margin-top: 0.3rem; }
+    
+    .form-control { background: var(--inset); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.85rem; font-family: inherit; transition: all 0.2s; width: 100%; }
+    .form-control:hover { border-color: var(--border-hover); }
+    .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); }
+    
+    .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .slider-val { font-weight: 600; color: #818cf8; font-size: 0.85rem; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; background: var(--inset); border-radius: 4px; outline: none; -webkit-appearance: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #fff; border-radius: 50%; border: 2px solid var(--accent); cursor: pointer; }
 
-    .preview-box img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
+    .action-container { margin-top: 1rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    button#analyzeBtn { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-md); padding: 1rem 3rem; font-size: 1.1rem; font-weight: 600; width: 100%; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39); }
+    button#analyzeBtn:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+    button#analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; transform: none; }
+    #status { font-size: 0.9rem; color: var(--muted); }
 
-    .preview-box .placeholder {
-      color: var(--dim);
-      font-size: 0.8rem;
-      text-align: center;
-      line-height: 1.6;
-    }
-
-    .file-name {
-      font-size: 0.75rem;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .controls {
-      display: flex;
-      gap: 0.6rem;
-      justify-content: center;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 1.25rem;
-    }
-
-    .controls label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .controls select {
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.45rem 0.75rem;
-      font-size: 0.85rem;
-      font-family: inherit;
-      cursor: pointer;
-    }
-
-    .controls select:hover { border-color: var(--accent); }
-    .controls select:focus { outline: none; border-color: var(--accent); }
-
-    /* Sensitivity controls */
-    .sensitivity { gap: 1.5rem; margin-bottom: 0.75rem; align-items: flex-start; }
-
-    .ctrl-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      align-items: flex-start;
-    }
-
-    .ctrl-group input[type="range"] {
-      width: 150px;
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
-
-    .ctrl-num {
-      color: var(--accent-hover);
-      font-weight: 600;
-      margin-left: 0.3rem;
-    }
-
-    .ctrl-default {
-      font-size: 0.7rem;
-      color: var(--dim);
-      font-weight: 400;
-      letter-spacing: normal;
-      text-transform: none;
-    }
-
-    .ctrl-desc {
-      font-size: 0.68rem;
-      color: var(--dim);
-      line-height: 1.5;
-      max-width: 160px;
-      margin-top: 0.05rem;
-      text-transform: none;
-      letter-spacing: normal;
-      font-weight: 400;
-    }
-
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
-      font-size: 0.78rem;
-      color: var(--text);
-      cursor: pointer;
-      text-transform: none;
-      letter-spacing: normal;
-    }
-
-    .checkbox-label input[type="checkbox"] {
-      width: 15px;
-      height: 15px;
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
-
-    .hint {
-      text-align: center;
-      font-size: 0.74rem;
-      color: var(--dim);
-      margin: 0 auto 1.25rem;
-      max-width: 560px;
-      line-height: 1.6;
-    }
-
-    .btn-row {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 2rem;
-    }
-
-    button#analyzeBtn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 0.7rem 2.5rem;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s, opacity 0.2s;
-    }
-
-    button#analyzeBtn:hover:not(:disabled) { background: var(--accent-hover); }
-    button#analyzeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    #status {
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--muted);
-      min-height: 1.4rem;
-      margin-bottom: 1.5rem;
-    }
-
-    #status.error { color: #f87171; }
-
-    /* ===================== RESULT VIEW (full screen) ===================== */
-    #resultView { display: none; }
-    /* When showing results, hide the upload view and let results fill the page */
+    /* Results Mode */
+    #resultView { display: none; flex-direction: column; gap: 1.5rem; max-width: 1400px; margin: 0 auto; }
     body.results-mode #uploadView { display: none; }
     body.results-mode #resultView { display: flex; }
 
-    #resultView {
-      flex-direction: column;
-      gap: 1.25rem;
-      width: 100%;
-      max-width: 1500px;
-      margin: 0 auto;
-    }
+    .rv-bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;}
+    .back-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.2rem; font-weight: 500; cursor: pointer; transition: 0.2s; }
+    .back-btn:hover { background: var(--inset); border-color: var(--accent); }
+    .rv-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin-right: auto;}
+    
+    .stat-badge { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; align-items: flex-end;}
+    .stat-val { font-size: 1.5rem; font-weight: 700; color: #818cf8; line-height: 1; margin-bottom: 0.2rem;}
+    .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 
-    .rv-bar {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
+    .rv-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; }
+    .rv-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .rv-panel-head h3 { font-size: 1rem; font-weight: 600; color: var(--text); }
+    
+    .dl-zip-btn { background: var(--accent); color: #fff; padding: 0.6rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; gap: 0.5rem; align-items: center; }
+    .dl-zip-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    
+    .image-frame { display: flex; gap: 1.25rem; width: 100%; justify-content: center; }
+    @media (max-width: 900px) { .image-frame { flex-direction: column; } }
 
-    .back-btn {
-      background: var(--card);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.55rem 1.1rem;
-      font-size: 0.9rem;
-      font-family: inherit;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .back-btn:hover { border-color: var(--accent); background: #16161d; }
+    .image-box { flex: 1; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; cursor: zoom-in; transition: 0.2s; }
+    .image-box:hover { border-color: var(--accent); }
+    .image-box img { max-width: 100%; max-height: 60vh; border-radius: 4px; object-fit: contain; }
+    .image-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 
-    .rv-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: #fff;
-    }
+    /* Modal */
+    .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); cursor: zoom-out; }
+    .modal img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .modal-close { position: absolute; top: 20px; right: 30px; color: #fff; font-size: 40px; font-weight: bold; cursor: pointer; }
 
-    .rv-stats {
-      display: flex;
-      gap: 0.6rem;
-      margin-left: auto;
-    }
-
-    .stat {
-      min-width: 96px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.5rem 0.9rem;
-      text-align: center;
-    }
-
-    .stat .stat-val {
-      font-size: 1.3rem;
-      font-weight: 700;
-      color: var(--accent-hover);
-      line-height: 1.1;
-    }
-
-    .stat .stat-unit {
-      font-size: 0.7rem;
-      font-weight: 500;
-      color: var(--muted);
-      margin-left: 1px;
-    }
-
-    .stat .stat-label {
-      display: block;
-      margin-top: 0.2rem;
-      font-size: 0.62rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-    }
-
-    /* Two big output panels side by side, filling the page width */
-    .rv-params {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-
-    .rv-param {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.3rem 0.65rem;
-      font-size: 0.75rem;
-    }
-
-    .rv-param-key {
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-size: 0.65rem;
-    }
-
-    .rv-param-val {
-      color: var(--accent-hover);
-      font-weight: 700;
-    }
-
-    .rv-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1.25rem;
-    }
-
-    @media (max-width: 900px) {
-      .rv-grid { grid-template-columns: 1fr; }
-      .rv-stats { margin-left: 0; width: 100%; }
-      .rv-stats .stat { flex: 1; }
-    }
-
-    .rv-panel {
-      display: flex;
-      flex-direction: column;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem;
-    }
-
-    .rv-panel-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 0.85rem;
-    }
-
-    .rv-panel-head h3 {
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .rv-panel-head a {
-      flex-shrink: 0;
-      background: var(--inset);
-      color: var(--text);
-      border: 1px solid var(--border);
-      text-decoration: none;
-      font-size: 0.78rem;
-      padding: 0.4rem 1rem;
-      border-radius: 6px;
-      transition: background 0.2s, border-color 0.2s;
-    }
-    .rv-panel-head a:hover { background: #1a1a22; border-color: var(--accent); }
-
-    /* Large image stage — fills the panel, scales image up to most of the viewport */
-    .rv-stage {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      background: var(--inset);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.75rem;
-      min-height: 0;
-    }
-
-    .rv-stage img {
-      max-width: 100%;
-      max-height: 72vh;
-      object-fit: contain;
-      display: block;
-    }
-
-    .color-stage img { flex: 0 1 auto; }
-
-    .colorbar {
-      align-self: stretch;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.7rem;
-      color: var(--muted);
-      flex-shrink: 0;
-      max-height: 72vh;
-    }
-
-    .colorbar .bar {
-      flex: 1;
-      width: 18px;
-      border-radius: 3px;
-      border: 1px solid var(--border);
-      /* gradient set per colormap from JS; JET as default */
-      background: linear-gradient(to top,
-        #00007f 0%, #0000ff 12%, #007fff 25%, #00ffff 37%,
-        #7fff7f 50%, #ffff00 62%, #ff7f00 75%, #ff0000 87%, #7f0000 100%);
-    }
-
-    .spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid #ffffff33;
-      border-top-color: var(--accent-hover);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-  <!-- ============ UPLOAD VIEW ============ -->
   <div id="uploadView">
-    <h1>BOS Image Analysis</h1>
-    <p class="subtitle">Upload reference & test images to visualize refractive index changes</p>
-
-    <div class="upload-row">
-      <div class="drop-zone" id="refZone">
-        <label>Reference image</label>
-        <div class="preview-box" id="refPreviewBox">
-          <span class="placeholder">Click or drag &amp; drop<br/>PNG / JPG / BMP</span>
-        </div>
-        <div class="file-name" id="refFileName">No file chosen</div>
-        <input type="file" id="refInput" accept="image/*" />
-      </div>
-
-      <div class="drop-zone" id="testZone">
-        <label>Test image</label>
-        <div class="preview-box" id="testPreviewBox">
-          <span class="placeholder">Click or drag &amp; drop<br/>PNG / JPG / BMP</span>
-        </div>
-        <div class="file-name" id="testFileName">No file chosen</div>
-        <input type="file" id="testInput" accept="image/*" />
-      </div>
+    <div class="header">
+      <h1>BOS Gas-Flow Visualization</h1>
+      <p>Background Oriented Schlieren Processing & Experimental Logging</p>
     </div>
 
-    <div class="controls">
-      <div class="ctrl-group">
-        <label for="colormapSel">Colormap</label>
-        <select id="colormapSel">
-          <option value="JET">JET</option>
-          <option value="TURBO">TURBO</option>
-          <option value="VIRIDIS">VIRIDIS</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Sensitivity controls — useful for weak signals like He gas -->
-    <div class="controls sensitivity">
-      <div class="ctrl-group">
-        <label for="gainSlider">Gain <span id="gainVal" class="ctrl-num">1.0×</span> <span class="ctrl-default">(default: 1.0×)</span></label>
-        <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
-        <span class="ctrl-desc">Makes the image brighter so faint flow (like He gas) is easier to see. Only changes how the image looks, not the numbers.</span>
-      </div>
-
-      <div class="ctrl-group">
-        <label for="threshSlider">Threshold <span id="threshVal" class="ctrl-num">30</span> <span class="ctrl-default">(default: 30)</span></label>
-        <input type="range" id="threshSlider" min="5" max="80" step="1" value="30" />
-        <span class="ctrl-desc">Sets how strong a pixel must be to count as "flow" in the Coverage % number. Higher = stricter.</span>
-      </div>
-
-      <div class="ctrl-group">
-        <label for="floorSlider">Noise floor <span id="floorVal" class="ctrl-num">0</span> <span class="ctrl-default">(default: 0 = off)</span></label>
-        <input type="range" id="floorSlider" min="0" max="60" step="1" value="0" />
-        <span class="ctrl-desc">Hides weak background noise by blacking out low pixels, so only the real flow shows. Only changes how the image looks, not the numbers.</span>
-      </div>
-
-    </div>
-
-    <p class="hint">Tip: Raise the Noise floor to clean up a noisy background (e.g. camera or lighting noise). Raise the Gain to see weak flow more clearly (e.g. He gas). Keep the Threshold the same when comparing experiments (e.g. Ar vs He).</p>
-
-    <div class="btn-row">
-      <button id="analyzeBtn" disabled>Analyze</button>
-    </div>
-
-    <div id="status"></div>
-  </div>
-
-  <!-- ============ RESULT VIEW (full screen) ============ -->
-  <div id="resultView">
-    <div class="rv-bar">
-      <button id="backBtn" class="back-btn">Back</button>
-      <div class="rv-title">Result</div>
-      <div class="rv-stats">
-        <div class="stat"><div class="stat-val" id="statMax">–</div><span class="stat-label">Max diff (0–255)</span></div>
-        <div class="stat"><div class="stat-val" id="statMean">–</div><span class="stat-label">Mean diff (0–255)</span></div>
-        <div class="stat"><div class="stat-val" id="statCoverage">–</div><span class="stat-label" id="statCoverageLabel">Coverage (diff&gt;30)</span></div>
-      </div>
-    </div>
-
-    <div class="rv-params">
-      <div class="rv-param"><span class="rv-param-key">Colormap</span><span class="rv-param-val" id="paramColormap">–</span></div>
-      <div class="rv-param"><span class="rv-param-key">Gain</span><span class="rv-param-val" id="paramGain">–</span></div>
-      <div class="rv-param"><span class="rv-param-key">Threshold</span><span class="rv-param-val" id="paramThreshold">–</span></div>
-      <div class="rv-param"><span class="rv-param-key">Noise floor</span><span class="rv-param-val" id="paramFloor">–</span></div>
-    </div>
-
-    <div class="rv-grid">
-      <div class="rv-panel">
-        <div class="rv-panel-head">
-          <h3>Grayscale difference</h3>
-          <a id="grayDl" download="diff_grayscale.png">Download PNG</a>
-        </div>
-        <div class="rv-stage">
-          <img id="grayImg" src="" alt="Grayscale diff" />
-        </div>
-      </div>
-
-      <div class="rv-panel">
-        <div class="rv-panel-head">
-          <h3>Pseudo-color (<span id="colorCmapName">JET</span> colormap)</h3>
-          <a id="colorDl" download="diff_color.png">Download PNG</a>
-        </div>
-        <div class="rv-stage color-stage">
-          <img id="colorImg" src="" alt="Color diff" />
-          <div class="colorbar">
-            <span>high</span>
-            <div class="bar" id="colorbarBar"></div>
-            <span>low</span>
+    <div class="container">
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">1. Image Input</h2></div>
+        <div class="grid-2">
+          <div class="drop-zone" id="refZone">
+            <label>Reference (Actuator OFF)</label>
+            <div class="preview-box" id="refPreviewBox"><span class="placeholder">Click or drag image</span></div>
+            <div class="file-name" id="refFileName">No file chosen</div>
+            <input type="file" id="refInput" accept="image/*" />
+          </div>
+          <div class="drop-zone" id="testZone">
+            <label>Test (Actuator ON)</label>
+            <div class="preview-box" id="testPreviewBox"><span class="placeholder">Click or drag image</span></div>
+            <div class="file-name" id="testFileName">No file chosen</div>
+            <input type="file" id="testInput" accept="image/*" />
           </div>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">2. Display Settings</h2>
+          <span class="card-desc">Adjusting these values only affects the visual output, not the raw CSV data.</span>
+        </div>
+        <div class="grid-4">
+          <div class="form-group">
+            <label for="colormapSel">Colormap</label>
+            <select id="colormapSel" class="form-control">
+              <option value="JET">JET</option>
+              <option value="TURBO">TURBO</option>
+              <option value="VIRIDIS">VIRIDIS</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="slider-header"><label>Gain</label><span id="gainVal" class="slider-val">1.0×</span></div>
+            <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
+            <div class="input-desc">Makes the image brighter so faint flow is easier to see. Only changes how the image looks, not the numbers.</div>
+          </div>
+          <div class="form-group">
+            <div class="slider-header"><label>Noise floor</label><span id="floorVal" class="slider-val">0</span></div>
+            <input type="range" id="floorSlider" min="0" max="60" step="1" value="0" />
+            <div class="input-desc">Hides weak background noise by blacking out low pixels, so only the real flow shows.</div>
+          </div>
+          <div class="form-group">
+            <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">30</span></div>
+            <input type="range" id="threshSlider" min="5" max="80" step="1" value="30" />
+            <div class="input-desc">Sets how strong a pixel must be to count as "flow" in the Coverage % number. Higher = stricter.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">3. Experimental Parameters</h2>
+          <span class="card-desc">Variables to be logged into the CSV database.</span>
+        </div>
+        <div class="grid-4">
+          <div class="form-group"><label>Gas Type</label><input type="text" id="gasType" class="form-control" placeholder="e.g., Ar, He, None" /></div>
+          <div class="form-group"><label>Flow Rate (L/min)</label><input type="number" id="flowRate" class="form-control" step="0.1" value="0.0" /></div>
+          <div class="form-group"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
+          <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" placeholder="e.g., 5kV / 2kHz" /></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">4. Camera & Layout Settings</h2></div>
+        <div class="grid-4" style="margin-bottom: 1rem;">
+          <div class="form-group"><label>Camera Type</label><input type="text" id="camType" class="form-control" /></div>
+          <div class="form-group"><label>Focus Setting</label><input type="text" id="focusSetting" class="form-control" value="Manual Focus (MF)" /></div>
+          <div class="form-group"><label>ISO</label><input type="text" id="iso" class="form-control" /></div>
+          <div class="form-group"><label>Shutter Speed</label><input type="text" id="shutter" class="form-control" /></div>
+        </div>
+        <div class="grid-4" style="margin-bottom: 1rem;">
+          <div class="form-group"><label>Aperture</label><input type="text" id="aperture" class="form-control" /></div>
+          <div class="form-group"><label>Cam-BG Dist (cm)</label><input type="number" id="camDist" class="form-control" /></div>
+          <div class="form-group"><label>Nozzle-BG Dist (cm)</label><input type="number" id="nozDist" class="form-control" /></div>
+          <div class="form-group"><label>Lighting Condition</label><input type="text" id="lighting" class="form-control" /></div>
+        </div>
+        <div class="form-group"><label>Notes / Vibration Issues</label><input type="text" id="notes" class="form-control" /></div>
+      </div>
+
+      <div class="action-container">
+        <button id="analyzeBtn" disabled>Run Analysis</button>
+        <div id="status">Please upload both Reference and Test images to continue.</div>
+      </div>
     </div>
   </div>
 
+  <div id="resultView">
+    <div class="rv-bar">
+      <button id="backBtn" class="back-btn">← Back to Setup</button>
+      <div class="rv-title">Analysis Result</div>
+      
+      <div class="stat-badge">
+        <div class="stat-val" id="statMax">-</div>
+        <span class="stat-label">Max Diff (0-255)</span>
+      </div>
+      <div class="stat-badge">
+        <div class="stat-val" id="statMean">-</div>
+        <span class="stat-label">Mean Diff</span>
+      </div>
+      <div class="stat-badge">
+        <div class="stat-val" id="statCoverage">-</div>
+        <span class="stat-label" id="statCoverageLabel">Coverage %</span>
+      </div>
+    </div>
+
+    <div class="rv-panel">
+      <div class="rv-panel-head">
+        <h3>Visualized Images <span style="color:var(--muted); font-size:0.8rem; font-weight:normal; margin-left:10px;">(Click image to expand)</span></h3>
+        <button id="dlZipBtn" class="dl-zip-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Download ZIP
+        </button>
+      </div>
+      
+      <div class="image-frame">
+        <div class="image-box" onclick="openFullscreen('grayImg')">
+          <div class="image-title">Grayscale Difference</div>
+          <img id="grayImg" src="" alt="Grayscale diff" />
+        </div>
+        <div class="image-box" onclick="openFullscreen('colorImg')">
+          <div class="image-title">Pseudo-color (<span id="colorCmapName">JET</span>)</div>
+          <img id="colorImg" src="" alt="Color diff" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="imgModal" class="modal" onclick="closeFullscreen()">
+    <span class="modal-close">&times;</span>
+    <img id="modalImg" src="" />
+  </div>
+
   <script>
-    const refInput    = document.getElementById('refInput');
-    const testInput   = document.getElementById('testInput');
-    const analyzeBtn  = document.getElementById('analyzeBtn');
-    const statusEl    = document.getElementById('status');
-    const colormapSel = document.getElementById('colormapSel');
-    const backBtn     = document.getElementById('backBtn');
-    const gainSlider  = document.getElementById('gainSlider');
-    const threshSlider= document.getElementById('threshSlider');
-    const floorSlider = document.getElementById('floorSlider');
-    const gainVal     = document.getElementById('gainVal');
-    const threshVal   = document.getElementById('threshVal');
-    const floorVal    = document.getElementById('floorVal');
+    const refInput = document.getElementById('refInput');
+    const testInput = document.getElementById('testInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const statusEl = document.getElementById('status');
+    
+    let currentAnalysisData = {};
 
-    // Live-update the numeric labels next to each slider.
-    gainSlider.addEventListener('input', () => {
-      gainVal.textContent = parseFloat(gainSlider.value).toFixed(1) + '×';
-    });
-    threshSlider.addEventListener('input', () => {
-      threshVal.textContent = threshSlider.value;
-    });
-    floorSlider.addEventListener('input', () => {
-      floorVal.textContent = floorSlider.value;
-    });
+    document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
+    document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
+    document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
 
-    // Switch back from the full-screen result view to the upload view.
-    backBtn.addEventListener('click', () => {
+    document.getElementById('backBtn').onclick = () => {
       document.body.classList.remove('results-mode');
-      window.scrollTo(0, 0);
-    });
-
-    // CSS gradients approximating each OpenCV colormap (low → high).
-    const COLORBARS = {
-      JET: 'linear-gradient(to top, #00007f 0%, #0000ff 12%, #007fff 25%, #00ffff 37%, #7fff7f 50%, #ffff00 62%, #ff7f00 75%, #ff0000 87%, #7f0000 100%)',
-      TURBO: 'linear-gradient(to top, #30123b 0%, #4145ab 12%, #4675ed 25%, #39a2fc 37%, #1bcfd4 50%, #4bf57d 62%, #a4fc3b 75%, #f0ba38 82%, #f56918 90%, #ce2a13 96%, #7a0403 100%)',
-      VIRIDIS: 'linear-gradient(to top, #440154 0%, #443983 25%, #31688e 50%, #21918c 62%, #35b779 75%, #90d743 87%, #fde725 100%)',
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    function applyColorbar(name) {
-      document.getElementById('colorbarBar').style.background = COLORBARS[name] || COLORBARS.JET;
+    /**
+     * @param {string} imgId - The DOM ID of the image element to preview
+     */
+    function openFullscreen(imgId) {
+      document.getElementById('modalImg').src = document.getElementById(imgId).src;
+      document.getElementById('imgModal').style.display = 'flex';
     }
 
-    // Keep the colorbar preview in sync with the selector before analyzing.
-    colormapSel.addEventListener('change', () => applyColorbar(colormapSel.value));
-    applyColorbar(colormapSel.value);
+    function closeFullscreen() {
+      document.getElementById('imgModal').style.display = 'none';
+    }
 
+    /**
+     * @param {string} zoneId - DOM ID of the drop zone container
+     * @param {HTMLElement} inputEl - Target file input element
+     * @param {string} previewBoxId - DOM ID of the image preview container
+     * @param {string} fileNameId - DOM ID of the text element displaying the file name
+     */
     function setupZone(zoneId, inputEl, previewBoxId, fileNameId) {
       const zone = document.getElementById(zoneId);
-      const previewBox = document.getElementById(previewBoxId);
-      const fileNameEl = document.getElementById(fileNameId);
-
-      zone.addEventListener('click', () => inputEl.click());
-
-      zone.addEventListener('dragover', e => {
-        e.preventDefault();
-        zone.classList.add('over');
-      });
-      zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-      zone.addEventListener('drop', e => {
-        e.preventDefault();
-        zone.classList.remove('over');
-        const file = e.dataTransfer.files[0];
-        if (file) setFile(inputEl, previewBox, fileNameEl, file);
-      });
-
-      inputEl.addEventListener('change', () => {
-        if (inputEl.files[0]) setFile(inputEl, previewBox, fileNameEl, inputEl.files[0]);
-      });
-    }
-
-    function setFile(inputEl, previewBox, fileNameEl, file) {
-      // Assign to the hidden input via DataTransfer so fetch FormData can read it
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      inputEl.files = dt.files;
-
-      fileNameEl.textContent = file.name;
-
-      const reader = new FileReader();
-      reader.onload = e => {
-        previewBox.innerHTML = `<img src="${e.target.result}" alt="preview" />`;
+      
+      zone.onclick = () => inputEl.click();
+      zone.ondragover = e => { e.preventDefault(); zone.classList.add('over'); };
+      zone.ondragleave = () => zone.classList.remove('over');
+      
+      zone.ondrop = e => { 
+        e.preventDefault(); 
+        zone.classList.remove('over'); 
+        if (e.dataTransfer.files[0]) setFile(inputEl, previewBoxId, fileNameId, e.dataTransfer.files[0]); 
       };
+      
+      inputEl.onchange = () => { 
+        if (inputEl.files[0]) setFile(inputEl, previewBoxId, fileNameId, inputEl.files[0]); 
+      };
+    }
+
+    /**
+     * Handles file ingestion and enables processing UI if validation passes
+     */
+    function setFile(inputEl, previewBoxId, fileNameId, file) {
+      const dt = new DataTransfer(); 
+      dt.items.add(file); 
+      inputEl.files = dt.files;
+      
+      document.getElementById(fileNameId).textContent = file.name;
+      
+      const reader = new FileReader();
+      reader.onload = e => { document.getElementById(previewBoxId).innerHTML = `<img src="${e.target.result}" />`; };
       reader.readAsDataURL(file);
-
-      updateBtn();
-    }
-
-    function updateBtn() {
+      
       analyzeBtn.disabled = !(refInput.files.length && testInput.files.length);
+      if(!analyzeBtn.disabled) statusEl.textContent = "Ready to analyze. System will also save logs to CSV.";
     }
 
-    setupZone('refZone',  refInput,  'refPreviewBox',  'refFileName');
+    setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
     setupZone('testZone', testInput, 'testPreviewBox', 'testFileName');
 
-    analyzeBtn.addEventListener('click', async () => {
-      statusEl.className = '';
-      statusEl.innerHTML = '<span class="spinner"></span>Analyzing…';
+    document.getElementById('analyzeBtn').onclick = async () => {
+      statusEl.innerHTML = '<span class="spinner"></span>Processing Images...';
       analyzeBtn.disabled = true;
-
-      const selectedCmap = colormapSel.value;
 
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
-      fd.append('test',      testInput.files[0]);
-      fd.append('colormap',  selectedCmap);
-      fd.append('gain',      gainSlider.value);
-      fd.append('threshold', threshSlider.value);
-      fd.append('noise_floor', floorSlider.value);
+      fd.append('test', testInput.files[0]);
+      fd.append('colormap', document.getElementById('colormapSel').value);
+      fd.append('gain', document.getElementById('gainSlider').value);
+      fd.append('threshold', document.getElementById('threshSlider').value);
+      fd.append('noise_floor', document.getElementById('floorSlider').value);
+      
+      const logFields = {
+        gas_type: document.getElementById('gasType').value,
+        flow_rate: document.getElementById('flowRate').value,
+        plasma_status: document.getElementById('plasmaStatus').value,
+        plasma_condition: document.getElementById('plasmaCond').value,
+        CamType: document.getElementById('camType').value,
+        Focus: document.getElementById('focusSetting').value,
+        Iso: document.getElementById('iso').value,
+        Shutter: document.getElementById('shutter').value,
+        Aperture: document.getElementById('aperture').value,
+        CamDist: document.getElementById('camDist').value,
+        NozDist: document.getElementById('nozDist').value,
+        Light: document.getElementById('lighting').value,
+        Notes: document.getElementById('notes').value
+      };
+
+      const displayFields = {
+        cmap: document.getElementById('colormapSel').value,
+        gain: document.getElementById('gainSlider').value,
+        floor: document.getElementById('floorSlider').value,
+        thresh: document.getElementById('threshSlider').value
+      };
+
+      Object.entries(logFields).forEach(([key, val]) => fd.append(key, val));
 
       try {
         const res = await fetch('/analyze', { method: 'POST', body: fd });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || `Server error ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
         const data = await res.json();
 
-        const grayImg  = document.getElementById('grayImg');
-        const colorImg = document.getElementById('colorImg');
-        const grayDl   = document.getElementById('grayDl');
-        const colorDl  = document.getElementById('colorDl');
+        currentAnalysisData = {
+          grayBase64: data.grayscale,
+          colorBase64: data.color,
+          stats: data.stats,
+          log: logFields,
+          display: displayFields,
+          refName: refInput.files[0].name,
+          testName: testInput.files[0].name
+        };
 
-        grayImg.src  = `data:image/png;base64,${data.grayscale}`;
-        colorImg.src = `data:image/png;base64,${data.color}`;
-        grayDl.href  = grayImg.src;
-        colorDl.href = colorImg.src;
+        document.getElementById('grayImg').src = `data:image/png;base64,${data.grayscale}`;
+        document.getElementById('colorImg').src = `data:image/png;base64,${data.color}`;
+        document.getElementById('colorCmapName').textContent = document.getElementById('colormapSel').value;
 
-        // Statistics — Max/Mean are 8-bit intensity (0–255), Coverage is a percentage
         if (data.stats) {
-          document.getElementById('statMax').innerHTML      = `${data.stats.max}<span class="stat-unit">/255</span>`;
-          document.getElementById('statMean').innerHTML     = `${data.stats.mean}<span class="stat-unit">/255</span>`;
-          document.getElementById('statCoverage').innerHTML = `${data.stats.coverage}<span class="stat-unit">%</span>`;
-          document.getElementById('statCoverageLabel').innerHTML = `Coverage (diff&gt;${threshSlider.value})`;
+          document.getElementById('statMax').textContent = data.stats.max;
+          document.getElementById('statMean').textContent = data.stats.mean;
+          document.getElementById('statCoverage').textContent = data.stats.coverage + '%';
+          document.getElementById('statCoverageLabel').textContent = `Coverage (diff>${displayFields.thresh})`;
         }
 
-        // Sync colorbar + label to the colormap actually used for this result
-        document.getElementById('colorCmapName').textContent = selectedCmap;
-        applyColorbar(selectedCmap);
-
-        // Show the settings used for this analysis
-        document.getElementById('paramColormap').textContent  = selectedCmap;
-        document.getElementById('paramGain').textContent      = parseFloat(gainSlider.value).toFixed(1) + '×';
-        document.getElementById('paramThreshold').textContent = threshSlider.value;
-        document.getElementById('paramFloor').textContent     = floorSlider.value === '0' ? 'off' : floorSlider.value;
-
         statusEl.textContent = 'Analysis complete.';
-        // Jump to the full-screen result view
         document.body.classList.add('results-mode');
-        window.scrollTo(0, 0);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
       } catch (err) {
-        statusEl.className = 'error';
+        statusEl.style.color = '#ef4444';
         statusEl.textContent = `Error: ${err.message}`;
       } finally {
         analyzeBtn.disabled = false;
+        setTimeout(() => { statusEl.style.color = 'var(--muted)'; }, 3000);
       }
-    });
+    };
+
+    document.getElementById('dlZipBtn').onclick = async () => {
+      if (!window.JSZip) {
+        alert("JSZip library failed to load. Please check your internet connection.");
+        return;
+      }
+      
+      const btn = document.getElementById('dlZipBtn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span> Zipping...';
+      btn.disabled = true;
+
+      try {
+        const zip = new JSZip();
+        
+        zip.file("diff_grayscale.png", currentAnalysisData.grayBase64, {base64: true});
+        zip.file(`diff_color_${currentAnalysisData.display.cmap}.png`, currentAnalysisData.colorBase64, {base64: true});
+
+        const headers = ["Gas Type", "Flow Rate", "Plasma Status", "Plasma Condition", "Camera Type", "Focus", "ISO", "Shutter", "Aperture", "Cam Dist(cm)", "Nozzle Dist(cm)", "Lighting", "Notes", "Colormap", "Gain", "Noise Floor", "Threshold", "Ref File", "Test File", "Max Diff", "Mean Diff", "Coverage %"];
+        const l = currentAnalysisData.log;
+        const s = currentAnalysisData.stats;
+        const d = currentAnalysisData.display;
+        
+        // Escape quotes and wrap values in double quotes to prevent CSV injection on commas
+        const values = [
+          l.gas_type, l.flow_rate, l.plasma_status, l.plasma_condition,
+          l.CamType, l.Focus, l.Iso, l.Shutter, l.Aperture,
+          l.CamDist, l.NozDist, l.Light, l.Notes,
+          d.cmap, d.gain, d.floor, d.thresh,
+          currentAnalysisData.refName, currentAnalysisData.testName,
+          s.max, s.mean, s.coverage
+        ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`); 
+        
+        const csvContent = headers.join(',') + '\n' + values.join(',');
+        zip.file("trial_log.csv", csvContent);
+
+        const blob = await zip.generateAsync({type:"blob"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        const timeStr = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        const gasPrefix = l.gas_type ? `${l.gas_type}_` : '';
+        a.download = `BOS_${gasPrefix}${timeStr}.zip`;
+        
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("Error creating ZIP file: " + err.message);
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    };
   </script>
 </body>
 </html>

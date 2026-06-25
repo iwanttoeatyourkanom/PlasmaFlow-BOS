@@ -26,3 +26,9 @@ Thumbs.db
 
 # Claude Code
 .claude/
+CLAUDE.md
+
+
+docs/
+experimental_log.csv
+

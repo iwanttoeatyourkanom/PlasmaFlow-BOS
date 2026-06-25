@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BOS Gas-Flow Visualization</title>
-  
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -46,11 +46,11 @@
     .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
     .form-group label { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
     .input-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.4; margin-top: 0.3rem; }
-    
+
     .form-control { background: var(--inset); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.85rem; font-family: inherit; transition: all 0.2s; width: 100%; }
     .form-control:hover { border-color: var(--border-hover); }
     .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); }
-    
+
     .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
     .slider-val { font-weight: 600; color: #818cf8; font-size: 0.85rem; }
     input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; background: var(--inset); border-radius: 4px; outline: none; -webkit-appearance: none; }
@@ -62,6 +62,20 @@
     button#analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; transform: none; }
     #status { font-size: 0.9rem; color: var(--muted); }
 
+    /* ROI Selection */
+    .roi-placeholder { background: var(--inset); border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    #roiCanvas { display: none; max-width: 380px; max-height: 340px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 2px dashed var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
+    #roiCanvas.has-image { display: block; }
+    #roiCanvas.has-roi { border-color: var(--accent); border-style: solid; }
+    .roi-info { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
+    .roi-ratios { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .roi-ratios-label { font-size: 0.78rem; color: var(--muted); margin-right: 0.25rem; }
+    .roi-ratio-btn { background: var(--inset); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.85rem; font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: 0.15s; font-family: inherit; }
+    .roi-ratio-btn:hover { border-color: var(--border-hover); color: var(--text); }
+    .roi-ratio-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-secondary { background: var(--inset); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: 0.2s; font-family: inherit; }
+    .btn-secondary:hover { border-color: var(--border-hover); background: var(--card); }
+
     /* Results Mode */
     #resultView { display: none; flex-direction: column; gap: 1.5rem; max-width: 1400px; margin: 0 auto; }
     body.results-mode #uploadView { display: none; }
@@ -71,18 +85,18 @@
     .back-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.2rem; font-weight: 500; cursor: pointer; transition: 0.2s; }
     .back-btn:hover { background: var(--inset); border-color: var(--accent); }
     .rv-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin-right: auto;}
-    
-    .stat-badge { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; align-items: flex-end;}
+
+    .stat-badge { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-width: 110px; }
     .stat-val { font-size: 1.5rem; font-weight: 700; color: #818cf8; line-height: 1; margin-bottom: 0.2rem;}
     .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 
     .rv-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; }
     .rv-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .rv-panel-head h3 { font-size: 1rem; font-weight: 600; color: var(--text); }
-    
+
     .dl-zip-btn { background: var(--accent); color: #fff; padding: 0.6rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; gap: 0.5rem; align-items: center; }
     .dl-zip-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    
+
     .image-frame { display: flex; gap: 1.25rem; width: 100%; justify-content: center; }
     @media (max-width: 900px) { .image-frame { flex-direction: column; } }
 
@@ -90,6 +104,8 @@
     .image-box:hover { border-color: var(--accent); }
     .image-box img { max-width: 100%; max-height: 60vh; border-radius: 4px; object-fit: contain; }
     .image-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .roi-active-bar { font-size: 0.8rem; color: #818cf8; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: rgba(79,70,229,0.1); border-radius: 6px; border: 1px solid rgba(79,70,229,0.3); display: none; }
 
     /* Modal */
     .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); cursor: zoom-out; }
@@ -109,6 +125,7 @@
     </div>
 
     <div class="container">
+      <!-- Card 1: Image Input -->
       <div class="card">
         <div class="card-header"><h2 class="card-title">1. Image Input</h2></div>
         <div class="grid-2">
@@ -127,9 +144,36 @@
         </div>
       </div>
 
+      <!-- Card 2: ROI Selection -->
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title">2. Display Settings</h2>
+          <h2 class="card-title">
+            2. ROI Selection
+            <span style="font-size:0.75rem;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--muted);margin-left:6px;">(Optional)</span>
+          </h2>
+          <button id="clearRoiBtn" class="btn-secondary" style="display:none;">✕ Clear ROI</button>
+        </div>
+        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">
+          Drag on the reference image below to select a region. Stats (max/mean/coverage) will be computed only within that area. Skip to analyze the full image.
+        </p>
+        <div class="roi-ratios" id="roiRatios">
+          <span class="roi-ratios-label">Aspect ratio:</span>
+          <button type="button" class="roi-ratio-btn active" data-ratio="free">Freeform</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="1:1">Square 1:1</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="3:4">Vertical 3:4</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="9:16">Vertical 9:16</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="4:3">Horizontal 4:3</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="16:9">Horizontal 16:9</button>
+        </div>
+        <div id="roiPlaceholder" class="roi-placeholder">Upload a Reference image first to enable ROI selection.</div>
+        <canvas id="roiCanvas"></canvas>
+        <div id="roiInfo" class="roi-info">No ROI selected — full image will be analyzed.</div>
+      </div>
+
+      <!-- Card 3: Display Settings -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">3. Display Settings</h2>
           <span class="card-desc">Adjusting these values only affects the visual output, not the raw CSV data.</span>
         </div>
         <div class="grid-4">
@@ -159,9 +203,10 @@
         </div>
       </div>
 
+      <!-- Card 4: Experimental Parameters -->
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title">3. Experimental Parameters</h2>
+          <h2 class="card-title">4. Experimental Parameters</h2>
           <span class="card-desc">Variables to be logged into the CSV database.</span>
         </div>
         <div class="grid-4">
@@ -172,8 +217,9 @@
         </div>
       </div>
 
+      <!-- Card 5: Camera & Layout Settings -->
       <div class="card">
-        <div class="card-header"><h2 class="card-title">4. Camera & Layout Settings</h2></div>
+        <div class="card-header"><h2 class="card-title">5. Camera & Layout Settings</h2></div>
         <div class="grid-4" style="margin-bottom: 1rem;">
           <div class="form-group"><label>Camera Type</label><input type="text" id="camType" class="form-control" /></div>
           <div class="form-group"><label>Focus Setting</label><input type="text" id="focusSetting" class="form-control" value="Manual Focus (MF)" /></div>
@@ -200,7 +246,7 @@
     <div class="rv-bar">
       <button id="backBtn" class="back-btn">← Back to Setup</button>
       <div class="rv-title">Analysis Result</div>
-      
+
       <div class="stat-badge">
         <div class="stat-val" id="statMax">-</div>
         <span class="stat-label">Max Diff (0-255)</span>
@@ -223,7 +269,9 @@
           Download ZIP
         </button>
       </div>
-      
+
+      <div id="roiActiveBar" class="roi-active-bar"></div>
+
       <div class="image-frame">
         <div class="image-box" onclick="openFullscreen('grayImg')">
           <div class="image-title">Grayscale Difference</div>
@@ -247,7 +295,7 @@
     const testInput = document.getElementById('testInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const statusEl = document.getElementById('status');
-    
+
     let currentAnalysisData = {};
 
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
@@ -259,9 +307,6 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    /**
-     * @param {string} imgId - The DOM ID of the image element to preview
-     */
     function openFullscreen(imgId) {
       document.getElementById('modalImg').src = document.getElementById(imgId).src;
       document.getElementById('imgModal').style.display = 'flex';
@@ -271,51 +316,248 @@
       document.getElementById('imgModal').style.display = 'none';
     }
 
-    /**
-     * @param {string} zoneId - DOM ID of the drop zone container
-     * @param {HTMLElement} inputEl - Target file input element
-     * @param {string} previewBoxId - DOM ID of the image preview container
-     * @param {string} fileNameId - DOM ID of the text element displaying the file name
-     */
-    function setupZone(zoneId, inputEl, previewBoxId, fileNameId) {
-      const zone = document.getElementById(zoneId);
-      
-      zone.onclick = () => inputEl.click();
-      zone.ondragover = e => { e.preventDefault(); zone.classList.add('over'); };
-      zone.ondragleave = () => zone.classList.remove('over');
-      
-      zone.ondrop = e => { 
-        e.preventDefault(); 
-        zone.classList.remove('over'); 
-        if (e.dataTransfer.files[0]) setFile(inputEl, previewBoxId, fileNameId, e.dataTransfer.files[0]); 
-      };
-      
-      inputEl.onchange = () => { 
-        if (inputEl.files[0]) setFile(inputEl, previewBoxId, fileNameId, inputEl.files[0]); 
+    // ===== ROI Selection =====
+    const roiCanvas = document.getElementById('roiCanvas');
+    const roiCtx = roiCanvas.getContext('2d');
+    let roiImageEl = new Image();
+    let roiDragging = false;
+    let roiStart = { x: 0, y: 0 };
+    let roiEnd = { x: 0, y: 0 };
+    let roiActive = false;
+    let roiNorm = null; // {x, y, w, h} all normalized 0-1
+    let roiRatio = null; // locked width/height, or null for freeform
+
+    function getROICanvasPos(e) {
+      const rect = roiCanvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) / rect.width * roiCanvas.width,
+        y: (e.clientY - rect.top) / rect.height * roiCanvas.height
       };
     }
 
-    /**
-     * Handles file ingestion and enables processing UI if validation passes
-     */
+    // Build the selection rectangle from the drag, enforcing the locked aspect
+    // ratio (if any) and clamping it inside the canvas.
+    function getROIRect() {
+      const dx = roiEnd.x - roiStart.x;
+      const dy = roiEnd.y - roiStart.y;
+      let w = Math.abs(dx);
+      let h = Math.abs(dy);
+      if (roiRatio) {
+        w = Math.max(w, h * roiRatio);
+        h = w / roiRatio;
+      }
+      let x = dx < 0 ? roiStart.x - w : roiStart.x;
+      let y = dy < 0 ? roiStart.y - h : roiStart.y;
+
+      const cw = roiCanvas.width, ch = roiCanvas.height;
+      if (x < 0) { w += x; x = 0; }
+      if (y < 0) { h += y; y = 0; }
+      if (x + w > cw) w = cw - x;
+      if (y + h > ch) h = ch - y;
+      // Re-fit to the ratio after clamping, shrinking to the limiting side.
+      if (roiRatio && w > 0 && h > 0) {
+        if (w / h > roiRatio) w = h * roiRatio;
+        else h = w / roiRatio;
+      }
+      return { x, y, w: Math.max(0, w), h: Math.max(0, h) };
+    }
+
+    function drawROICanvas() {
+      roiCtx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+      if (roiImageEl.complete && roiImageEl.naturalWidth) {
+        roiCtx.drawImage(roiImageEl, 0, 0, roiCanvas.width, roiCanvas.height);
+      }
+      if (roiActive || roiDragging) {
+        const r = getROIRect();
+        if (r.w > 0 && r.h > 0) {
+          roiCtx.fillStyle = 'rgba(79, 70, 229, 0.25)';
+          roiCtx.fillRect(r.x, r.y, r.w, r.h);
+          roiCtx.strokeStyle = '#818cf8';
+          roiCtx.lineWidth = 2;
+          roiCtx.setLineDash([6, 3]);
+          roiCtx.strokeRect(r.x, r.y, r.w, r.h);
+          roiCtx.setLineDash([]);
+        }
+      }
+    }
+
+    function updateROIInfo() {
+      const infoEl = document.getElementById('roiInfo');
+      const clearBtn = document.getElementById('clearRoiBtn');
+      if (roiNorm) {
+        const xp = (roiNorm.x * 100).toFixed(1);
+        const yp = (roiNorm.y * 100).toFixed(1);
+        const wp = (roiNorm.w * 100).toFixed(1);
+        const hp = (roiNorm.h * 100).toFixed(1);
+        infoEl.textContent = `Selected: ${wp}% × ${hp}% of image, from (${xp}%, ${yp}%)`;
+        infoEl.style.color = '#818cf8';
+        clearBtn.style.display = '';
+        roiCanvas.classList.add('has-roi');
+      } else {
+        infoEl.textContent = 'No ROI selected — full image will be analyzed.';
+        infoEl.style.color = 'var(--muted)';
+        clearBtn.style.display = 'none';
+        roiCanvas.classList.remove('has-roi');
+      }
+    }
+
+    function clearROI() {
+      roiActive = false;
+      roiDragging = false;
+      roiStart = { x: 0, y: 0 };
+      roiEnd = { x: 0, y: 0 };
+      roiNorm = null;
+      updateROIInfo();
+      drawROICanvas();
+    }
+
+    // Commit the current rectangle as the active ROI (shared by drag-release
+    // and aspect-ratio changes).
+    function commitROI() {
+      const r = getROIRect();
+      if (r.w < 5 || r.h < 5) {
+        clearROI();
+        return;
+      }
+      roiActive = true;
+      roiNorm = {
+        x: r.x / roiCanvas.width,
+        y: r.y / roiCanvas.height,
+        w: r.w / roiCanvas.width,
+        h: r.h / roiCanvas.height
+      };
+      updateROIInfo();
+      drawROICanvas();
+    }
+
+    function finalizeROI() {
+      roiDragging = false;
+      commitROI();
+    }
+
+    // Drop a default centered box (~70% of the image) so the user sees a frame
+    // immediately when picking a ratio, then can drag to adjust.
+    function placeDefaultROI() {
+      if (!roiImageEl.naturalWidth) return;
+      const cw = roiCanvas.width, ch = roiCanvas.height;
+      let w = cw * 0.7;
+      let h = roiRatio ? w / roiRatio : ch * 0.7;
+      if (h > ch * 0.7) { h = ch * 0.7; w = roiRatio ? h * roiRatio : cw * 0.7; }
+      const x = (cw - w) / 2;
+      const y = (ch - h) / 2;
+      roiStart = { x, y };
+      roiEnd = { x: x + w, y: y + h };
+      commitROI();
+    }
+
+    document.querySelectorAll('.roi-ratio-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.roi-ratio-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const v = btn.dataset.ratio;
+        roiRatio = v === 'free' ? null : (() => { const [a, b2] = v.split(':').map(Number); return a / b2; })();
+
+        if (roiActive) {
+          commitROI();              // re-fit the existing box to the new ratio
+        } else if (v !== 'free') {
+          placeDefaultROI();        // show a starter box so the frame is visible
+        }
+      });
+    });
+
+    roiCanvas.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const pos = getROICanvasPos(e);
+      roiDragging = true;
+      roiActive = false;
+      roiNorm = null;
+      roiStart = pos;
+      roiEnd = pos;
+      updateROIInfo();
+    });
+
+    roiCanvas.addEventListener('mousemove', e => {
+      if (!roiDragging) return;
+      roiEnd = getROICanvasPos(e);
+      drawROICanvas();
+    });
+
+    roiCanvas.addEventListener('mouseup', e => {
+      if (!roiDragging) return;
+      roiEnd = getROICanvasPos(e);
+      finalizeROI();
+    });
+
+    roiCanvas.addEventListener('mouseleave', () => {
+      if (roiDragging) finalizeROI();
+    });
+
+    document.getElementById('clearRoiBtn').onclick = e => {
+      e.stopPropagation();
+      clearROI();
+    };
+
+    function loadRefImageToROICanvas(src) {
+      const img = new Image();
+      img.onload = () => {
+        roiImageEl = img;
+        const MAX_W = 1200;
+        const scale = Math.min(1, MAX_W / img.naturalWidth);
+        roiCanvas.width = Math.round(img.naturalWidth * scale);
+        roiCanvas.height = Math.round(img.naturalHeight * scale);
+        document.getElementById('roiPlaceholder').style.display = 'none';
+        roiCanvas.classList.add('has-image');
+        clearROI();
+        // If a ratio was already chosen, show its starter box right away.
+        if (roiRatio) placeDefaultROI();
+        else drawROICanvas();
+      };
+      img.src = src;
+    }
+
+    // ===== File Upload =====
+    function setupZone(zoneId, inputEl, previewBoxId, fileNameId) {
+      const zone = document.getElementById(zoneId);
+
+      zone.onclick = () => inputEl.click();
+      zone.ondragover = e => { e.preventDefault(); zone.classList.add('over'); };
+      zone.ondragleave = () => zone.classList.remove('over');
+
+      zone.ondrop = e => {
+        e.preventDefault();
+        zone.classList.remove('over');
+        if (e.dataTransfer.files[0]) setFile(inputEl, previewBoxId, fileNameId, e.dataTransfer.files[0]);
+      };
+
+      inputEl.onchange = () => {
+        if (inputEl.files[0]) setFile(inputEl, previewBoxId, fileNameId, inputEl.files[0]);
+      };
+    }
+
     function setFile(inputEl, previewBoxId, fileNameId, file) {
-      const dt = new DataTransfer(); 
-      dt.items.add(file); 
+      const dt = new DataTransfer();
+      dt.items.add(file);
       inputEl.files = dt.files;
-      
+
       document.getElementById(fileNameId).textContent = file.name;
-      
+
       const reader = new FileReader();
-      reader.onload = e => { document.getElementById(previewBoxId).innerHTML = `<img src="${e.target.result}" />`; };
+      reader.onload = e => {
+        document.getElementById(previewBoxId).innerHTML = `<img src="${e.target.result}" />`;
+        if (inputEl === refInput) {
+          loadRefImageToROICanvas(e.target.result);
+        }
+      };
       reader.readAsDataURL(file);
-      
+
       analyzeBtn.disabled = !(refInput.files.length && testInput.files.length);
-      if(!analyzeBtn.disabled) statusEl.textContent = "Ready to analyze. System will also save logs to CSV.";
+      if (!analyzeBtn.disabled) statusEl.textContent = "Ready to analyze. System will also save logs to CSV.";
     }
 
     setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
     setupZone('testZone', testInput, 'testPreviewBox', 'testFileName');
 
+    // ===== Run Analysis =====
     document.getElementById('analyzeBtn').onclick = async () => {
       statusEl.innerHTML = '<span class="spinner"></span>Processing Images...';
       analyzeBtn.disabled = true;
@@ -327,7 +569,15 @@
       fd.append('gain', document.getElementById('gainSlider').value);
       fd.append('threshold', document.getElementById('threshSlider').value);
       fd.append('noise_floor', document.getElementById('floorSlider').value);
-      
+
+      // Append ROI if a selection exists
+      if (roiNorm) {
+        fd.append('roi_x', roiNorm.x.toFixed(6));
+        fd.append('roi_y', roiNorm.y.toFixed(6));
+        fd.append('roi_w', roiNorm.w.toFixed(6));
+        fd.append('roi_h', roiNorm.h.toFixed(6));
+      }
+
       const logFields = {
         gas_type: document.getElementById('gasType').value,
         flow_rate: document.getElementById('flowRate').value,
@@ -365,18 +615,33 @@
           log: logFields,
           display: displayFields,
           refName: refInput.files[0].name,
-          testName: testInput.files[0].name
+          testName: testInput.files[0].name,
+          roi: roiNorm ? { ...roiNorm } : null
         };
 
         document.getElementById('grayImg').src = `data:image/png;base64,${data.grayscale}`;
         document.getElementById('colorImg').src = `data:image/png;base64,${data.color}`;
-        document.getElementById('colorCmapName').textContent = document.getElementById('colormapSel').value;
+        document.getElementById('colorCmapName').textContent = displayFields.cmap;
 
         if (data.stats) {
           document.getElementById('statMax').textContent = data.stats.max;
           document.getElementById('statMean').textContent = data.stats.mean;
           document.getElementById('statCoverage').textContent = data.stats.coverage + '%';
-          document.getElementById('statCoverageLabel').textContent = `Coverage (diff>${displayFields.thresh})`;
+          const coverageLabel = roiNorm
+            ? `Coverage in ROI (diff>${displayFields.thresh})`
+            : `Coverage (diff>${displayFields.thresh})`;
+          document.getElementById('statCoverageLabel').textContent = coverageLabel;
+        }
+
+        // Show ROI info bar in result view
+        const roiBar = document.getElementById('roiActiveBar');
+        if (roiNorm) {
+          const wp = (roiNorm.w * 100).toFixed(1);
+          const hp = (roiNorm.h * 100).toFixed(1);
+          roiBar.textContent = `ROI active: ${wp}% × ${hp}% of image — stats below are computed within the selected region only.`;
+          roiBar.style.display = 'block';
+        } else {
+          roiBar.style.display = 'none';
         }
 
         statusEl.textContent = 'Analysis complete.';
@@ -392,12 +657,13 @@
       }
     };
 
+    // ===== Download ZIP =====
     document.getElementById('dlZipBtn').onclick = async () => {
       if (!window.JSZip) {
         alert("JSZip library failed to load. Please check your internet connection.");
         return;
       }
-      
+
       const btn = document.getElementById('dlZipBtn');
       const originalText = btn.innerHTML;
       btn.innerHTML = '<span class="spinner"></span> Zipping...';
@@ -405,37 +671,54 @@
 
       try {
         const zip = new JSZip();
-        
-        zip.file("diff_grayscale.png", currentAnalysisData.grayBase64, {base64: true});
-        zip.file(`diff_color_${currentAnalysisData.display.cmap}.png`, currentAnalysisData.colorBase64, {base64: true});
 
-        const headers = ["Gas Type", "Flow Rate", "Plasma Status", "Plasma Condition", "Camera Type", "Focus", "ISO", "Shutter", "Aperture", "Cam Dist(cm)", "Nozzle Dist(cm)", "Lighting", "Notes", "Colormap", "Gain", "Noise Floor", "Threshold", "Ref File", "Test File", "Max Diff", "Mean Diff", "Coverage %"];
+        zip.file("diff_grayscale.png", currentAnalysisData.grayBase64, { base64: true });
+        zip.file(`diff_color_${currentAnalysisData.display.cmap}.png`, currentAnalysisData.colorBase64, { base64: true });
+
+        const headers = [
+          "Date / Time",
+          "Gas Type", "Flow Rate", "Plasma Status", "Plasma Condition",
+          "Camera Type", "Focus", "ISO", "Shutter", "Aperture",
+          "Cam Dist(cm)", "Nozzle Dist(cm)", "Lighting", "Notes",
+          "Colormap", "Gain", "Noise Floor", "Threshold",
+          "Ref File", "Test File", "Max Diff", "Mean Diff", "Coverage %",
+          "ROI X (norm)", "ROI Y (norm)", "ROI W (norm)", "ROI H (norm)"
+        ];
+
         const l = currentAnalysisData.log;
         const s = currentAnalysisData.stats;
         const d = currentAnalysisData.display;
-        
-        // Escape quotes and wrap values in double quotes to prevent CSV injection on commas
+        const roi = currentAnalysisData.roi;
+
+        const now = new Date();
+        const pad = (n) => n.toString().padStart(2, '0');
+        const dateTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+          `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
         const values = [
+          dateTime,
           l.gas_type, l.flow_rate, l.plasma_status, l.plasma_condition,
           l.CamType, l.Focus, l.Iso, l.Shutter, l.Aperture,
           l.CamDist, l.NozDist, l.Light, l.Notes,
           d.cmap, d.gain, d.floor, d.thresh,
           currentAnalysisData.refName, currentAnalysisData.testName,
-          s.max, s.mean, s.coverage
-        ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`); 
-        
+          s.max, s.mean, s.coverage,
+          roi ? roi.x.toFixed(6) : '', roi ? roi.y.toFixed(6) : '',
+          roi ? roi.w.toFixed(6) : '', roi ? roi.h.toFixed(6) : ''
+        ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`);
+
         const csvContent = headers.join(',') + '\n' + values.join(',');
         zip.file("trial_log.csv", csvContent);
 
-        const blob = await zip.generateAsync({type:"blob"});
+        const blob = await zip.generateAsync({ type: "blob" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        
+
         const timeStr = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
         const gasPrefix = l.gas_type ? `${l.gas_type}_` : '';
         a.download = `BOS_${gasPrefix}${timeStr}.zip`;
-        
+
         a.click();
         URL.revokeObjectURL(url);
       } catch (err) {

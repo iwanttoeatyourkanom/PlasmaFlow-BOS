@@ -51,6 +51,9 @@
     .form-control:hover { border-color: var(--border-hover); }
     .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); }
 
+    .toggle-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0; cursor: pointer; }
+    .toggle-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+
     .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
     .slider-val { font-weight: 600; color: #818cf8; font-size: 0.85rem; }
     input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; background: var(--inset); border-radius: 4px; outline: none; -webkit-appearance: none; }
@@ -186,6 +189,14 @@
             </select>
           </div>
           <div class="form-group">
+            <label for="denoiseToggle">Noise Reduction</label>
+            <label class="toggle-row">
+              <input type="checkbox" id="denoiseToggle" checked />
+              <span id="denoiseState" class="slider-val">On</span>
+            </label>
+            <div class="input-desc">Applies a median filter to the difference image to remove single-pixel speckle while keeping the gas jet. Only affects the displayed image, not the numbers.</div>
+          </div>
+          <div class="form-group">
             <div class="slider-header"><label>Gain</label><span id="gainVal" class="slider-val">1.0×</span></div>
             <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
             <div class="input-desc">Makes the image brighter so faint flow is easier to see. Only changes how the image looks, not the numbers.</div>
@@ -249,7 +260,7 @@
 
       <div class="stat-badge">
         <div class="stat-val" id="statMax">-</div>
-        <span class="stat-label">Max Diff (0-255)</span>
+        <span class="stat-label">Peak Diff (p99)</span>
       </div>
       <div class="stat-badge">
         <div class="stat-val" id="statMean">-</div>
@@ -301,6 +312,7 @@
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
     document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
     document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
+    document.getElementById('denoiseToggle').onchange = (e) => document.getElementById('denoiseState').textContent = e.target.checked ? 'On' : 'Off';
 
     document.getElementById('backBtn').onclick = () => {
       document.body.classList.remove('results-mode');
@@ -569,6 +581,7 @@
       fd.append('gain', document.getElementById('gainSlider').value);
       fd.append('threshold', document.getElementById('threshSlider').value);
       fd.append('noise_floor', document.getElementById('floorSlider').value);
+      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
 
       // Append ROI if a selection exists
       if (roiNorm) {
@@ -598,7 +611,8 @@
         cmap: document.getElementById('colormapSel').value,
         gain: document.getElementById('gainSlider').value,
         floor: document.getElementById('floorSlider').value,
-        thresh: document.getElementById('threshSlider').value
+        thresh: document.getElementById('threshSlider').value,
+        denoise: document.getElementById('denoiseToggle').checked ? 'ON' : 'OFF'
       };
 
       Object.entries(logFields).forEach(([key, val]) => fd.append(key, val));
@@ -624,7 +638,7 @@
         document.getElementById('colorCmapName').textContent = displayFields.cmap;
 
         if (data.stats) {
-          document.getElementById('statMax').textContent = data.stats.max;
+          document.getElementById('statMax').textContent = data.stats.peak;
           document.getElementById('statMean').textContent = data.stats.mean;
           document.getElementById('statCoverage').textContent = data.stats.coverage + '%';
           const coverageLabel = roiNorm
@@ -672,8 +686,9 @@
       try {
         const zip = new JSZip();
 
+        const cmap = currentAnalysisData.display.cmap;
         zip.file("diff_grayscale.png", currentAnalysisData.grayBase64, { base64: true });
-        zip.file(`diff_color_${currentAnalysisData.display.cmap}.png`, currentAnalysisData.colorBase64, { base64: true });
+        zip.file(`diff_color_${cmap}.png`, currentAnalysisData.colorBase64, { base64: true });
 
         const headers = [
           "Date / Time",
@@ -681,8 +696,9 @@
           "Camera Type", "Focus", "ISO", "Shutter", "Aperture",
           "Cam Dist(cm)", "Nozzle Dist(cm)", "Lighting", "Notes",
           "Colormap", "Gain", "Noise Floor", "Threshold",
-          "Ref File", "Test File", "Max Diff", "Mean Diff", "Coverage %",
-          "ROI X (norm)", "ROI Y (norm)", "ROI W (norm)", "ROI H (norm)"
+          "Ref File", "Test File", "Peak Diff p99", "Mean Diff", "Coverage %",
+          "ROI X (norm)", "ROI Y (norm)", "ROI W (norm)", "ROI H (norm)",
+          "Denoise"
         ];
 
         const l = currentAnalysisData.log;
@@ -702,9 +718,10 @@
           l.CamDist, l.NozDist, l.Light, l.Notes,
           d.cmap, d.gain, d.floor, d.thresh,
           currentAnalysisData.refName, currentAnalysisData.testName,
-          s.max, s.mean, s.coverage,
+          s.peak, s.mean, s.coverage,
           roi ? roi.x.toFixed(6) : '', roi ? roi.y.toFixed(6) : '',
-          roi ? roi.w.toFixed(6) : '', roi ? roi.h.toFixed(6) : ''
+          roi ? roi.w.toFixed(6) : '', roi ? roi.h.toFixed(6) : '',
+          d.denoise
         ].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`);
 
         const csvContent = headers.join(',') + '\n' + values.join(',');

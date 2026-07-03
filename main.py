@@ -1,5 +1,6 @@
 import base64
 import csv
+import json
 import os
 from datetime import datetime
 
@@ -17,7 +18,7 @@ COLORMAPS = {
     "VIRIDIS": cv2.COLORMAP_VIRIDIS,
 }
 
-DEFAULT_COVERAGE_THRESHOLD = 30
+DEFAULT_COVERAGE_THRESHOLD = 12
 # Kernel for the median filter applied to the diff when noise reduction is on.
 # Median removes single-pixel speckle well without smearing the gas jet the way
 # a Gaussian blur would.
@@ -43,26 +44,13 @@ LOG_HEADER = [
 ]
 
 
-def run_bos(
-    ref_bytes: bytes,
-    test_bytes: bytes,
-    colormap: str = "JET",
-    gain: float = 1.0,
-    threshold: int = DEFAULT_COVERAGE_THRESHOLD,
-    noise_floor: int = 0,
-    roi_norm: tuple = None,
-    denoise: bool = True,
-) -> dict:
-    """Compute the BOS difference between a reference and test image.
+def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None):
+    """Decode ref/test images and return their grayscale absolute difference.
 
-    roi_norm, if given, is (x, y, w, h) in normalized 0-1 coordinates; both
-    images are cropped to it before differencing so stats reflect the ROI only.
-
-    Display parameters (colormap, gain, noise_floor, denoise) affect the rendered
-    grayscale/pseudo-color output but never the reported stats, which are always
-    derived from the raw diff. When `denoise` is on, a median filter is applied to
-    the diff before rendering only (removes single-pixel speckle without smearing
-    the gas jet).
+    Shared by run_bos and /suggest_params so the suggested noise floor/threshold
+    are computed from exactly the same diff that analysis uses. roi_norm, if given,
+    is (x, y, w, h) in normalized 0-1 coordinates; both images are cropped to it
+    before differencing.
     """
     ref = cv2.imdecode(np.frombuffer(ref_bytes, np.uint8), cv2.IMREAD_COLOR)
     test = cv2.imdecode(np.frombuffer(test_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -86,7 +74,31 @@ def run_bos(
         ref_gray = ref_gray[ry:ry + rh, rx:rx + rw]
         test_gray = test_gray[ry:ry + rh, rx:rx + rw]
 
-    diff = cv2.absdiff(ref_gray, test_gray)
+    return cv2.absdiff(ref_gray, test_gray)
+
+
+def run_bos(
+    ref_bytes: bytes,
+    test_bytes: bytes,
+    colormap: str = "JET",
+    gain: float = 1.0,
+    threshold: int = DEFAULT_COVERAGE_THRESHOLD,
+    noise_floor: int = 0,
+    roi_norm: tuple = None,
+    denoise: bool = True,
+) -> dict:
+    """Compute the BOS difference between a reference and test image.
+
+    roi_norm, if given, is (x, y, w, h) in normalized 0-1 coordinates; both
+    images are cropped to it before differencing so stats reflect the ROI only.
+
+    Display parameters (colormap, gain, noise_floor, denoise) affect the rendered
+    grayscale/pseudo-color output but never the reported stats, which are always
+    derived from the raw diff. When `denoise` is on, a median filter is applied to
+    the diff before rendering only (removes single-pixel speckle without smearing
+    the gas jet).
+    """
+    diff = compute_diff(ref_bytes, test_bytes, roi_norm)
 
     # Stats come from the raw diff, before denoise/noise floor/gain/normalize.
     # "peak" is the 99th percentile, a robust max: it reports the strong-signal
@@ -246,6 +258,241 @@ async def analyze(
     })
 
     return result
+
+
+@app.post("/suggest_params")
+async def suggest_params(
+    reference: UploadFile = File(...),
+    test: UploadFile = File(...),
+    roi_x: float = Form(0.0),
+    roi_y: float = Form(0.0),
+    roi_w: float = Form(0.0),
+    roi_h: float = Form(0.0),
+):
+    """Suggest a noise floor and coverage threshold from the diff image.
+
+    Uses the same diff as run_bos (decode -> resize -> gray -> ROI crop -> absdiff),
+    then sets noise_floor to the 95th percentile and threshold to the 99th
+    percentile — just above the background noise level, assuming the analyzed
+    region is mostly background.
+    """
+    ref_bytes = await reference.read()
+    test_bytes = await test.read()
+
+    # A zero-size ROI means "no selection" — analyze the full image.
+    roi_norm = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
+
+    try:
+        diff = compute_diff(ref_bytes, test_bytes, roi_norm)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "noise_floor": int(round(float(np.percentile(diff, 95)))),
+        "threshold": int(round(float(np.percentile(diff, 99)))),
+    }
+
+
+def _crop_diff(diff, roi_norm: tuple):
+    """Crop a full-image diff to a normalized (x, y, w, h) ROI.
+
+    Uses the same clamping as compute_diff so a slightly out-of-range selection
+    stays valid. Cropping the shared diff (instead of re-differencing per ROI)
+    keeps every region's numbers consistent with /analyze.
+    """
+    nx, ny, nw, nh = roi_norm
+    H, W = diff.shape
+    rx = max(0, min(int(nx * W), W - 1))
+    ry = max(0, min(int(ny * H), H - 1))
+    rw = min(max(1, int(nw * W)), W - rx)
+    rh = min(max(1, int(nh * H)), H - ry)
+    return diff[ry:ry + rh, rx:rx + rw]
+
+
+def _roi_stats(sub, threshold: int) -> dict:
+    """Per-ROI stats from a cropped diff, matching /analyze's definitions.
+
+    peak is the 99th percentile (robust max); coverage is the % of pixels above
+    threshold; std is the diff spread, used as a noise proxy for the SNR value.
+    """
+    return {
+        "mean": round(float(sub.mean()), 2),
+        "peak": int(round(float(np.percentile(sub, 99)))),
+        "std": round(float(sub.std()), 2),
+        "coverage": round(float(np.count_nonzero(sub > threshold)) / sub.size * 100.0, 2),
+        "pixels": int(sub.size),
+    }
+
+
+@app.post("/analyze_rois")
+async def analyze_rois(
+    reference: UploadFile = File(...),
+    test: UploadFile = File(...),
+    rois: str = Form(...),
+    threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
+):
+    """Analyze several named ROIs against one shared diff.
+
+    The full-image diff is computed ONCE, then cropped per ROI so every region's
+    numbers come from exactly the diff /analyze would produce (no re-differencing).
+    ROIs tagged role="background" set the noise level: their mean/std are averaged
+    into bg_mean/bg_std, and every ROI gets an SNR-like value — roi_mean / bg_mean
+    and roi_mean / bg_std. `rois` is a JSON list of {name, x, y, w, h, role}.
+    """
+    ref_bytes = await reference.read()
+    test_bytes = await test.read()
+
+    try:
+        roi_list = json.loads(rois)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="rois must be a valid JSON list.")
+    if not isinstance(roi_list, list) or not roi_list:
+        raise HTTPException(status_code=400, detail="rois must be a non-empty list.")
+
+    # Full-image diff once; each ROI is just a crop of it.
+    try:
+        diff = compute_diff(ref_bytes, test_bytes, None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # First pass: crop + stats for every ROI, collecting the background means/stds.
+    rows = []
+    bg_means, bg_stds = [], []
+    for i, roi in enumerate(roi_list):
+        try:
+            roi_norm = (float(roi["x"]), float(roi["y"]), float(roi["w"]), float(roi["h"]))
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"ROI #{i + 1} needs numeric x, y, w, h.")
+        role = roi.get("role", "signal")
+        name = str(roi.get("name") or f"ROI {i + 1}")
+
+        stats = _roi_stats(_crop_diff(diff, roi_norm), threshold)
+        stats["name"] = name
+        stats["role"] = role
+        rows.append(stats)
+        if role == "background":
+            bg_means.append(stats["mean"])
+            bg_stds.append(stats["std"])
+
+    # Average the background ROIs into one noise reference (None if none tagged).
+    bg_mean = round(sum(bg_means) / len(bg_means), 2) if bg_means else None
+    bg_std = round(sum(bg_stds) / len(bg_stds), 2) if bg_stds else None
+
+    # Second pass: SNR-like ratios against the background (guard divide-by-zero).
+    for row in rows:
+        row["snr_mean"] = round(row["mean"] / bg_mean, 2) if bg_mean else None
+        row["snr_std"] = round(row["mean"] / bg_std, 2) if bg_std else None
+
+    return {
+        "rois": rows,
+        "background": {"mean": bg_mean, "std": bg_std},
+        "threshold": threshold,
+    }
+
+
+@app.post("/line_profile")
+async def line_profile(
+    reference: UploadFile = File(...),
+    test: UploadFile = File(...),
+    x0: float = Form(...),
+    y0: float = Form(...),
+    x1: float = Form(...),
+    y1: float = Form(...),
+    samples: int = Form(200),
+    denoise: bool = Form(False),
+):
+    """Sample the BOS diff along a straight line and return the intensity profile.
+
+    Uses the same diff as /analyze (full image, no ROI). The endpoints are
+    normalized 0-1; the diff is sampled at `samples` evenly spaced points with
+    bilinear interpolation. A moving-average copy is returned alongside the raw
+    values so a jet's two-edge (shear-layer) structure — two peaks with a dip
+    between them — is easier to read on the chart.
+    """
+    ref_bytes = await reference.read()
+    test_bytes = await test.read()
+
+    # Clamp endpoints into [0,1] and require a line with real length.
+    cx0, cy0, cx1, cy1 = (max(0.0, min(1.0, v)) for v in (x0, y0, x1, y1))
+    if cx0 == cx1 and cy0 == cy1:
+        raise HTTPException(status_code=400, detail="Line has zero length; drag to draw a line.")
+    samples = max(2, samples)
+
+    try:
+        diff = compute_diff(ref_bytes, test_bytes, None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if denoise:
+        diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
+
+    H, W = diff.shape
+    # Normalized -> pixel coords, using the last valid index so both ends stay in bounds.
+    px0, px1 = cx0 * (W - 1), cx1 * (W - 1)
+    py0, py1 = cy0 * (H - 1), cy1 * (H - 1)
+    xs = np.linspace(px0, px1, samples).astype(np.float32).reshape(1, -1)
+    ys = np.linspace(py0, py1, samples).astype(np.float32).reshape(1, -1)
+
+    # Bilinear sample along the line (remap wants 2D maps, so use a single row).
+    sampled = cv2.remap(
+        diff.astype(np.float32), xs, ys,
+        interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE,
+    )[0]
+
+    # Light moving average (window 5) to bring out the two-edge dip.
+    kernel = np.ones(5, dtype=np.float32) / 5.0
+    smoothed = np.convolve(sampled, kernel, mode="same")
+
+    length_px = float(np.hypot(px1 - px0, py1 - py0))
+
+    return {
+        "values": [round(float(v), 1) for v in sampled],
+        "smoothed": [round(float(v), 1) for v in smoothed],
+        "peak": int(round(float(np.percentile(sampled, 99)))),
+        "mean": round(float(sampled.mean()), 2),
+        "length_px": int(round(length_px)),
+        "samples": samples,
+    }
+
+
+@app.post("/diff_preview")
+async def diff_preview(
+    reference: UploadFile = File(...),
+    test: UploadFile = File(...),
+):
+    """Return a contrast-stretched diff image for placing a line profile.
+
+    The Reference image (flow OFF) shows no jet, so drawing a line over it is
+    blind. This gives the frontend a DISPLAY-ONLY background where the jet is
+    visible: the full-frame diff clipped to its 2nd-98th percentile and scaled
+    to 0-255. The stretch is intentionally aggressive for visibility and is
+    NEVER fed into measurements (unlike the fixed-scale render in run_bos);
+    /line_profile still samples the raw diff via compute_diff.
+    """
+    ref_bytes = await reference.read()
+    test_bytes = await test.read()
+
+    try:
+        diff = compute_diff(ref_bytes, test_bytes, None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Calm speckle so the jet reads more clearly (display-only, like run_bos).
+    diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
+
+    # Contrast-stretch to the 2nd-98th percentile so faint jets become visible.
+    lo, hi = np.percentile(diff, (2, 98))
+    if hi <= lo:
+        hi = lo + 1.0
+    stretched = np.clip((diff.astype(np.float32) - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
+
+    _, buf = cv2.imencode(".png", stretched)
+    H, W = diff.shape
+    return {
+        "preview": base64.b64encode(buf).decode(),
+        "width": W,
+        "height": H,
+    }
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

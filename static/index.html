@@ -7,139 +7,426 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #09090b; --card: #18181b; --inset: #000000; --border: #27272a; --border-hover: #3f3f46;
-      --text: #f4f4f5; --muted: #a1a1aa; --accent: #4f46e5; --accent-hover: #4338ca;
-      --radius-lg: 16px; --radius-md: 10px;
+      --bg: #090b0d;
+      --bg-grid: #0d0e0f;
+      --card: #141517;
+      --card-2: #1c1d20;
+      --inset: #0b0c0d;
+      --border: #26282b;
+      --border-hover: #3b3e43;
+      --text: #e6e7e9;
+      --muted: #969a9f;
+      --faint: #61646a;
+      --accent: #d2d6da;
+      --accent-2: #d2d6da;
+      --accent-dim: rgba(255, 255, 255, 0.05);
+      --accent-line: rgba(255, 255, 255, 0.16);
+      --danger: #e0707a;
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --radius-sm: 7px;
+      --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: 'IBM Plex Sans', system-ui, sans-serif;
     }
 
-    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 3rem 1rem; line-height: 1.5; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
 
-    .header { text-align: center; margin-bottom: 3rem; }
-    .header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; margin-bottom: 0.5rem; }
-    .header p { font-size: 0.95rem; color: var(--muted); }
+    ::selection { background: rgba(255,255,255,0.16); color: #fff; }
 
-    .container { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-    .card-header { margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;}
-    .card-title { font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text); }
-    .card-desc { font-size: 0.75rem; color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: normal;}
+    /* ===== App header ===== */
+    .app-header {
+      max-width: 1080px; margin: 0 auto; padding: 2.6rem 1.25rem 1.6rem;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 0.95rem; }
+    .brand-mark {
+      width: 42px; height: 42px; flex: none; border-radius: 9px;
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      display: grid; place-items: center;
+    }
+    .brand-mark svg { width: 22px; height: 22px; color: var(--text); }
+    .brand h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; color: #fff; }
+    .brand .sub { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); letter-spacing: 0.01em; margin-top: 2px; }
+    .header-tag {
+      font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.4rem 0.85rem; background: var(--card);
+      display: inline-flex; align-items: center; gap: 0.5rem;
+    }
+    .header-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 
-    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
-    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-    @media (max-width: 768px) { .grid-2, .grid-4 { grid-template-columns: 1fr; } }
+    /* ===== Container & cards ===== */
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem 8rem; display: flex; flex-direction: column; gap: 1.25rem; }
 
-    .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s ease; background: var(--inset); display: flex; flex-direction: column; gap: 1rem; }
-    .drop-zone:hover, .drop-zone.over { border-color: var(--accent); background: rgba(79, 70, 229, 0.05); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 1.6rem 1.7rem; position: relative;
+    }
+
+    .card-header { margin-bottom: 1.3rem; display: flex; align-items: flex-start; gap: 0.85rem; }
+    .card-num {
+      font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--muted);
+      width: 27px; height: 27px; flex: none; border-radius: 7px; display: grid; place-items: center;
+      background: var(--inset); border: 1px solid var(--border); margin-top: 1px;
+    }
+    .card-head-text { flex: 1; min-width: 0; }
+    .card-title { font-size: 0.95rem; font-weight: 600; letter-spacing: 0.01em; color: var(--text); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .card-title .opt { font-family: var(--mono); font-size: 0.66rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+    .card-desc { font-size: 0.76rem; color: var(--muted); margin-top: 0.3rem; }
+    .card-header .header-spacer { flex: 1; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; }
+    @media (max-width: 820px) { .grid-2 { grid-template-columns: 1fr; } .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .grid-4 { grid-template-columns: 1fr; } }
+
+    /* ===== Drop zones ===== */
+    .drop-zone {
+      border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.1rem; cursor: pointer;
+      transition: border-color .18s, background .18s, box-shadow .18s; background: var(--inset);
+      display: flex; flex-direction: column; gap: 0.85rem;
+    }
+    .drop-zone:hover { border-color: var(--border-hover); }
+    .drop-zone.over { border-color: var(--text); background: var(--card-2); }
+    .drop-zone > label {
+      font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 0.45rem;
+    }
+    .drop-zone > label::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--muted); }
     .drop-zone input[type="file"] { display: none; }
-    .preview-box { width: 100%; height: 180px; background: var(--card); border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .preview-box {
+      width: 100%; height: 200px; background: var(--inset);
+      border-radius: 8px; border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
     .preview-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    .placeholder { color: var(--muted); font-size: 0.85rem; }
-    .file-name { font-size: 0.8rem; font-weight: 500; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .placeholder { color: var(--faint); font-size: 0.8rem; font-family: var(--mono); }
+    .file-name { font-size: 0.76rem; font-weight: 500; color: var(--text); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-    .form-group label { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
-    .input-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.4; margin-top: 0.3rem; }
+    /* ===== Form fields ===== */
+    .form-group { display: flex; flex-direction: column; gap: 0.42rem; }
+    .form-group label, .slider-header label {
+      font-size: 0.74rem; font-weight: 500; color: var(--muted);
+      font-family: var(--mono); letter-spacing: 0.02em;
+    }
+    .input-desc { font-size: 0.67rem; color: var(--faint); line-height: 1.45; margin-top: 0.28rem; }
 
-    .form-control { background: var(--inset); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.85rem; font-family: inherit; transition: all 0.2s; width: 100%; }
+    .form-control {
+      background: var(--inset); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 0.6rem 0.75rem; font-size: 0.85rem; font-family: var(--mono); transition: border-color .18s, box-shadow .18s; width: 100%;
+    }
+    .form-control::placeholder { color: var(--faint); }
     .form-control:hover { border-color: var(--border-hover); }
-    .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); }
+    .form-control:focus { outline: none; border-color: var(--text); box-shadow: none; }
+    select.form-control { appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a949e' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 0.7rem center; padding-right: 2rem; cursor: pointer;
+    }
 
-    .toggle-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0; cursor: pointer; }
-    .toggle-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+    /* ===== Toggle ===== */
+    .toggle-row { display: inline-flex; align-items: center; gap: 0.65rem; padding: 0.3rem 0; cursor: pointer; user-select: none; }
+    .toggle-row input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
+    .toggle-track {
+      width: 40px; height: 22px; border-radius: 999px; background: var(--inset); border: 1px solid var(--border);
+      position: relative; transition: background .2s, border-color .2s; flex: none;
+    }
+    .toggle-track::after {
+      content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+      background: var(--faint); transition: transform .2s, background .2s;
+    }
+    .toggle-row input:checked + .toggle-track { background: var(--card-2); border-color: var(--border-hover); }
+    .toggle-row input:checked + .toggle-track::after { transform: translateX(18px); background: var(--text); }
+    .slider-val { font-weight: 600; color: var(--text); font-size: 0.82rem; font-family: var(--mono); }
 
-    .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-    .slider-val { font-weight: 600; color: #818cf8; font-size: 0.85rem; }
-    input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; background: var(--inset); border-radius: 4px; outline: none; -webkit-appearance: none; }
-    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #fff; border-radius: 50%; border: 2px solid var(--accent); cursor: pointer; }
+    /* ===== Sliders ===== */
+    .slider-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.55rem; }
+    input[type="range"] {
+      width: 100%; cursor: pointer; height: 6px; border-radius: 3px; outline: none; -webkit-appearance: none;
+      background: #ffffff no-repeat, #2c2e31;
+      background-size: 35% 100%;
+    }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #ffffff; border-radius: 50%; border: 2px solid #0b0c0d; cursor: pointer; transition: transform .12s; }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.18); }
+    input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; background: var(--text); border-radius: 50%; border: none; cursor: pointer; }
 
-    .action-container { margin-top: 1rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-    button#analyzeBtn { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-md); padding: 1rem 3rem; font-size: 1.1rem; font-weight: 600; width: 100%; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39); }
-    button#analyzeBtn:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
-    button#analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; transform: none; }
-    #status { font-size: 0.9rem; color: var(--muted); }
-
-    /* ROI Selection */
-    .roi-placeholder { background: var(--inset); border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
-    #roiCanvas { display: none; max-width: 380px; max-height: 340px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 2px dashed var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
-    #roiCanvas.has-image { display: block; }
-    #roiCanvas.has-roi { border-color: var(--accent); border-style: solid; }
-    .roi-info { margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
-    .roi-ratios { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-    .roi-ratios-label { font-size: 0.78rem; color: var(--muted); margin-right: 0.25rem; }
-    .roi-ratio-btn { background: var(--inset); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.85rem; font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: 0.15s; font-family: inherit; }
+    /* ===== ROI ===== */
+    .roi-placeholder { background: var(--inset); border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 2.2rem; text-align: center; color: var(--faint); font-size: 0.82rem; font-family: var(--mono); }
+    #roiCanvas, #lineCanvas { display: none; max-width: 420px; max-height: 360px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 1px solid var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
+    #roiCanvas.has-image, #lineCanvas.has-image { display: block; }
+    #roiCanvas.has-roi { border-color: var(--text); }
+    .roi-info { margin-top: 0.85rem; font-size: 0.76rem; color: var(--muted); text-align: center; font-family: var(--mono); }
+    .roi-ratios { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1.1rem; }
+    .roi-ratios-label { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 0.3rem; }
+    .roi-ratio-btn { background: var(--inset); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; padding: 0.42rem 0.85rem; font-size: 0.74rem; font-weight: 500; cursor: pointer; transition: .15s; font-family: var(--mono); }
     .roi-ratio-btn:hover { border-color: var(--border-hover); color: var(--text); }
-    .roi-ratio-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn-secondary { background: var(--inset); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: 0.2s; font-family: inherit; }
-    .btn-secondary:hover { border-color: var(--border-hover); background: var(--card); }
+    .roi-ratio-btn.active { background: var(--text); border-color: var(--text); color: #0b0c0d; }
 
-    /* Results Mode */
-    #resultView { display: none; flex-direction: column; gap: 1.5rem; max-width: 1400px; margin: 0 auto; }
+    .btn-secondary { background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.45rem 0.9rem; font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: .18s; font-family: var(--sans); }
+    .btn-secondary:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ===== Named multi-ROI (regions for SNR analysis) ===== */
+    .mroi-section { margin-top: 1.5rem; padding-top: 1.4rem; border-top: 1px solid var(--border); }
+    .mroi-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .mroi-head .settings-subhead { margin-bottom: 0; }
+    .mroi-add:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+    .mroi-add:disabled { opacity: 0.4; cursor: not-allowed; }
+    .mroi-list { display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: 1.1rem; }
+    .mroi-empty { font-family: var(--mono); font-size: 0.76rem; color: var(--faint); padding: 0.55rem 0; }
+    .mroi-item { display: flex; align-items: center; gap: 0.6rem; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.5rem 0.6rem; }
+    .mroi-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+    .mroi-name { flex: 1; min-width: 0; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.4rem 0.55rem; font-size: 0.8rem; font-family: var(--mono); }
+    .mroi-name:hover { border-color: var(--border-hover); }
+    .mroi-name:focus { outline: none; border-color: var(--text); }
+    .mroi-role { flex: none; font-family: var(--mono); font-size: 0.72rem; background: var(--card-2); color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.4rem 0.7rem; cursor: pointer; transition: .15s; min-width: 96px; }
+    .mroi-role.signal { color: #7cc4ff; border-color: rgba(124,196,255,0.4); }
+    .mroi-role.background { color: #e0a05a; border-color: rgba(224,160,90,0.45); }
+    .mroi-del { flex: none; width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--card-2); border: 1px solid var(--border); color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; transition: .15s; }
+    .mroi-del:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ROI SNR results table */
+    .roi-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .roi-table th, .roi-table td { text-align: right; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+    .roi-table th { color: var(--muted); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+    .roi-table tr:last-child td { border-bottom: none; }
+    .roi-table th:nth-child(1), .roi-table th:nth-child(2),
+    .roi-table td:nth-child(1), .roi-table td:nth-child(2) { text-align: left; }
+    .roi-table td.roi-name-cell { color: var(--text); }
+    .roi-table tr.is-bg { background: rgba(224,160,90,0.08); }
+    .roi-table .role-tag { font-size: 0.72rem; }
+    .roi-table .role-tag.signal { color: #7cc4ff; }
+    .roi-table .role-tag.background { color: #e0a05a; }
+    .roi-note { font-size: 0.74rem; color: var(--muted); font-family: var(--mono); line-height: 1.5; margin-top: 0.95rem; }
+
+    /* ===== Line Profile controls (its own card, separate from ROI) ===== */
+    .line-opts { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.1rem; }
+    .line-opt-label { font-size: 0.76rem; color: var(--muted); font-family: var(--mono); }
+    .line-plot-btn { background: var(--text); color: #0b0c0d; border: none; border-radius: var(--radius-md); padding: 0.6rem 1.3rem; font-size: 0.85rem; font-weight: 700; font-family: var(--sans); cursor: pointer; transition: background .15s, transform .15s; display: inline-flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+    .line-plot-btn:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
+    .line-plot-btn:disabled { background: var(--card-2); color: var(--faint); cursor: not-allowed; }
+    #lineChartWrap { width: 100%; overflow-x: auto; }
+    #lineChart { width: 100%; max-width: 100%; height: auto; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); display: block; }
+    .line-hint { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); margin-top: 0.9rem; line-height: 1.5; }
+    /* Inline line-profile chart shown under the controls (not a full-screen view). */
+    #lineChartInline { margin-top: 1.3rem; padding-top: 1.3rem; border-top: 1px solid var(--border); }
+    .line-inline-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+    .line-inline-title { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+    .line-inline-head .hint { color: var(--faint); font-size: 0.74rem; font-family: var(--mono); }
+
+    /* ===== Settings sub-sections ===== */
+    .settings-section + .settings-section { margin-top: 1.6rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .settings-subhead { font-family: var(--mono); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 1.15rem; }
+    .settings-subhead .tag { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
+
+    /* Small "Auto" button that lives under a slider */
+    .btn-auto { align-self: flex-start; margin-top: 0.55rem; padding: 0.3rem 0.75rem; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .btn-auto:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+    .btn-auto:disabled { opacity: 0.4; cursor: not-allowed; }
+    /* Armed state: slider is locked and its value is filled in when you press Analyze */
+    .btn-auto.active { background: var(--text); border-color: var(--text); color: #0b0c0d; font-weight: 600; }
+    .btn-auto.active:hover { background: #fff; border-color: #fff; color: #0b0c0d; }
+    /* A locked (auto) slider reads as faint and can't be dragged */
+    input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
+    input[type="range"]:disabled::-webkit-slider-thumb { cursor: not-allowed; }
+    .slider-val.is-auto { color: var(--faint); }
+
+    /* ===== Sticky action bar ===== */
+    .action-bar {
+      position: sticky; bottom: 0; margin-top: 0.25rem; z-index: 50;
+      background: linear-gradient(180deg, rgba(10,10,11,0), rgba(10,10,11,0.94) 38%);
+      padding: 1.4rem 0 1.6rem; display: flex; flex-direction: column; align-items: stretch; gap: 0.7rem;
+    }
+    button#analyzeBtn {
+      background: var(--text); color: #0b0c0d; border: none; border-radius: var(--radius-md);
+      padding: 0.95rem 3rem; font-size: 1rem; font-weight: 700; font-family: var(--sans); letter-spacing: 0.01em;
+      width: 100%; cursor: pointer; transition: transform .15s, background .15s, opacity .15s;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    button#analyzeBtn:hover:not(:disabled) { background: #fff; transform: translateY(-1px); }
+    button#analyzeBtn:disabled { background: var(--card-2); color: var(--faint); cursor: not-allowed; }
+    #status { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); text-align: center; }
+
+    /* ===== Results view ===== */
+    #resultView { display: none; flex-direction: column; gap: 1.25rem; max-width: 1320px; margin: 0 auto; padding: 2.4rem 1.25rem 5rem; }
     body.results-mode #uploadView { display: none; }
     body.results-mode #resultView { display: flex; }
 
-    .rv-bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;}
-    .back-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.2rem; font-weight: 500; cursor: pointer; transition: 0.2s; }
-    .back-btn:hover { background: var(--inset); border-color: var(--accent); }
-    .rv-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin-right: auto;}
+    .rv-bar { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
+    .back-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.6rem 1.1rem; font-weight: 500; font-size: 0.85rem; cursor: pointer; transition: .18s; display: inline-flex; align-items: center; gap: 0.45rem; }
+    .back-btn:hover { border-color: var(--border-hover); color: var(--text); }
+    .rv-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin-right: auto; letter-spacing: -0.01em; }
 
-    .stat-badge { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-width: 110px; }
-    .stat-val { font-size: 1.5rem; font-weight: 700; color: #818cf8; line-height: 1; margin-bottom: 0.2rem;}
-    .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .stat-badge {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 0.7rem 1.2rem; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-width: 124px;
+    }
+    .stat-val { font-size: 1.45rem; font-weight: 600; color: var(--text); line-height: 1; margin-bottom: 0.3rem; font-family: var(--mono); }
+    .stat-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-family: var(--mono); }
 
-    .rv-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; }
-    .rv-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .rv-panel-head h3 { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .rv-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.4rem 1.5rem; display: flex; flex-direction: column; }
+    .rv-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.1rem; gap: 1rem; flex-wrap: wrap; }
+    .rv-panel-head h3 { font-size: 0.95rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 0.6rem; }
+    .rv-panel-head h3 .hint { color: var(--faint); font-size: 0.74rem; font-weight: normal; font-family: var(--mono); }
 
-    .dl-zip-btn { background: var(--accent); color: #fff; padding: 0.6rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; gap: 0.5rem; align-items: center; }
-    .dl-zip-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .dl-zip-btn { background: var(--text); color: #0b0c0d; padding: 0.58rem 1.3rem; border-radius: var(--radius-sm); border: none; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: background .15s, transform .15s; display: flex; gap: 0.5rem; align-items: center; }
+    .dl-zip-btn:hover { background: #fff; transform: translateY(-1px); }
+    .dl-zip-btn:disabled { opacity: 0.55; cursor: wait; }
 
-    .image-frame { display: flex; gap: 1.25rem; width: 100%; justify-content: center; }
-    @media (max-width: 900px) { .image-frame { flex-direction: column; } }
+    .image-frame { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; width: 100%; }
+    @media (max-width: 900px) { .image-frame { grid-template-columns: 1fr; } }
+    .image-box { background: var(--inset);
+      border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.85rem; cursor: zoom-in; transition: border-color .18s; }
+    .image-box:hover { border-color: var(--border-hover); }
+    .image-box img { max-width: 100%; max-height: 60vh; border-radius: 5px; object-fit: contain; }
+    .image-title { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--mono); align-self: flex-start; }
 
-    .image-box { flex: 1; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; cursor: zoom-in; transition: 0.2s; }
-    .image-box:hover { border-color: var(--accent); }
-    .image-box img { max-width: 100%; max-height: 60vh; border-radius: 4px; object-fit: contain; }
-    .image-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .roi-active-bar { font-size: 0.78rem; color: var(--text); margin-bottom: 1rem; padding: 0.6rem 0.85rem; background: var(--inset); border-radius: var(--radius-sm); border: 1px solid var(--border); display: none; font-family: var(--mono); }
 
-    .roi-active-bar { font-size: 0.8rem; color: #818cf8; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; background: rgba(79,70,229,0.1); border-radius: 6px; border: 1px solid rgba(79,70,229,0.3); display: none; }
+    /* ===== Result table ===== */
+    .result-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .result-table th, .result-table td { text-align: left; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); }
+    .result-table tr:last-child td { border-bottom: none; }
+    .result-table .grp td { background: var(--inset); font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding-top: 0.7rem; padding-bottom: 0.7rem; }
+    .result-table .k { color: var(--muted); font-family: var(--mono); font-size: 0.78rem; width: 42%; }
+    .result-table .v { color: var(--text); font-family: var(--mono); }
+    .result-table .v.empty { color: var(--faint); }
 
-    /* Modal */
-    .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); cursor: zoom-out; }
-    .modal img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    .modal-close { position: absolute; top: 20px; right: 30px; color: #fff; font-size: 40px; font-weight: bold; cursor: pointer; }
+    /* ===== Modal ===== */
+    .modal { display: none; position: fixed; z-index: 9999; inset: 0; background: rgba(4,6,8,0.92); align-items: center; justify-content: center; backdrop-filter: blur(6px); cursor: zoom-out; }
+    .modal img { max-width: 95%; max-height: 95%; border-radius: 8px; box-shadow: 0 24px 60px rgba(0,0,0,0.6); }
+    .modal-close { position: absolute; top: 20px; right: 30px; color: #fff; font-size: 40px; font-weight: 300; cursor: pointer; line-height: 1; }
 
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.25); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== Capture Guide (trigger button + popup modal) ===== */
+    .cg-trigger {
+      flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 0.5rem;
+      font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.02em;
+      color: var(--muted); background: var(--inset); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0.4rem 0.7rem; cursor: pointer;
+      transition: border-color .18s, color .18s, background .18s;
+    }
+    .cg-trigger:hover { border-color: var(--border-hover); color: var(--text); background: var(--card-2); }
+    .cg-trigger .cg-i {
+      font-family: var(--mono); font-size: 0.68rem; font-weight: 600;
+      width: 16px; height: 16px; flex: none; border-radius: 50%; display: grid; place-items: center;
+      background: var(--card-2); border: 1px solid var(--border); color: var(--text);
+    }
+
+    /* ===== Capture Guide popup ===== */
+    .cg-modal {
+      display: none; position: fixed; z-index: 9999; inset: 0; padding: 1.5rem;
+      background: rgba(4,6,8,0.78); backdrop-filter: blur(7px);
+      align-items: center; justify-content: center;
+    }
+    .cg-modal.open { display: flex; animation: cgFade .18s ease; }
+    @keyframes cgFade { from { opacity: 0; } to { opacity: 1; } }
+    .cg-dialog {
+      width: 100%; max-width: 640px; max-height: 86vh; display: flex; flex-direction: column;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      box-shadow: 0 28px 70px rgba(0,0,0,0.6); overflow: hidden; animation: cgPop .2s cubic-bezier(.2,.8,.3,1);
+    }
+    @keyframes cgPop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+    .cg-dialog-head {
+      display: flex; align-items: center; gap: 0.85rem; padding: 1.3rem 1.5rem;
+      border-bottom: 1px solid var(--border); flex: none;
+    }
+    .cg-dialog-head .cg-i {
+      font-family: var(--mono); font-size: 0.85rem; font-weight: 600;
+      width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center;
+      background: var(--inset); border: 1px solid var(--border); color: var(--text);
+    }
+    .cg-dialog-head h2 { font-size: 1rem; font-weight: 600; color: #fff; }
+    .cg-dialog-head .sub { font-size: 0.74rem; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+    .cg-dialog-close {
+      margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: 7px;
+      background: var(--inset); border: 1px solid var(--border); color: var(--muted);
+      font-size: 1.1rem; line-height: 1; cursor: pointer; display: grid; place-items: center;
+      transition: border-color .18s, color .18s, background .18s;
+    }
+    .cg-dialog-close:hover { border-color: var(--border-hover); color: var(--text); background: var(--card-2); }
+    .cg-body {
+      padding: 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 1.3rem; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .cg-body::-webkit-scrollbar { width: 6px; }
+    .cg-body::-webkit-scrollbar-track { background: transparent; }
+    .cg-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+    .cg-body::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+    .cg-group h3 {
+      font-family: var(--mono); font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text); margin-bottom: 0.6rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .cg-group h3::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: var(--accent); flex: none; }
+    .cg-group ul { list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+    .cg-group li { position: relative; padding-left: 1.15rem; font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
+    .cg-group li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 5px; height: 5px; border-radius: 2px; background: var(--faint); }
   </style>
 </head>
 <body>
 
+  <template id="__bundler_thumbnail" data-bg-color="#0a0a0b">
+    <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="800" fill="#0a0a0b"/>
+      <rect x="360" y="300" width="220" height="200" rx="14" fill="none" stroke="#3b3e43" stroke-width="6"/>
+      <rect x="620" y="300" width="220" height="200" rx="14" fill="none" stroke="#3b3e43" stroke-width="6"/>
+      <path d="M360 360h60l30-90 60 200 30-90h40" fill="none" stroke="#e6e7e9" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M620 360h60l30-90 60 200 30-90h40" fill="none" stroke="#969a9f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </template>
+
   <div id="uploadView">
-    <div class="header">
-      <h1>BOS Gas-Flow Visualization</h1>
-      <p>Background Oriented Schlieren Processing & Experimental Logging</p>
+    <div class="app-header">
+      <div class="brand">
+        <div>
+          <h1>BOS Gas-Flow Visualization</h1>
+          <div class="sub">by keng</div>
+        </div>
+      </div>
     </div>
 
     <div class="container">
       <!-- Card 1: Image Input -->
       <div class="card">
-        <div class="card-header"><h2 class="card-title">1. Image Input</h2></div>
+        <div class="card-header">
+          <div class="card-num">1</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Image Input</h2>
+            <div class="card-desc">Upload the reference and test frames for the differential pass.</div>
+          </div>
+          <div class="header-spacer"></div>
+          <button type="button" class="cg-trigger" id="captureGuideOpen" aria-haspopup="dialog">
+            <span class="cg-i" aria-hidden="true">i</span>
+            <span>Capture Guide</span>
+          </button>
+        </div>
+
         <div class="grid-2">
           <div class="drop-zone" id="refZone">
-            <label>Reference (Actuator OFF)</label>
+            <label>Reference · Actuator OFF</label>
             <div class="preview-box" id="refPreviewBox"><span class="placeholder">Click or drag image</span></div>
             <div class="file-name" id="refFileName">No file chosen</div>
             <input type="file" id="refInput" accept="image/*" />
           </div>
           <div class="drop-zone" id="testZone">
-            <label>Test (Actuator ON)</label>
+            <label>Test · Actuator ON</label>
             <div class="preview-box" id="testPreviewBox"><span class="placeholder">Click or drag image</span></div>
             <div class="file-name" id="testFileName">No file chosen</div>
             <input type="file" id="testInput" accept="image/*" />
@@ -150,94 +437,169 @@
       <!-- Card 2: ROI Selection -->
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title">
-            2. ROI Selection
-            <span style="font-size:0.75rem;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--muted);margin-left:6px;">(Optional)</span>
-          </h2>
+          <div class="card-num">2</div>
+          <div class="card-head-text">
+            <h2 class="card-title">ROI Selection <span class="opt">Optional</span></h2>
+            <div class="card-desc">Drag on the reference image to select a region. Stats (max / mean / coverage) are computed only within that area. Skip to analyze the full image.</div>
+          </div>
           <button id="clearRoiBtn" class="btn-secondary" style="display:none;">✕ Clear ROI</button>
         </div>
-        <p style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;">
-          Drag on the reference image below to select a region. Stats (max/mean/coverage) will be computed only within that area. Skip to analyze the full image.
-        </p>
         <div class="roi-ratios" id="roiRatios">
-          <span class="roi-ratios-label">Aspect ratio:</span>
+          <span class="roi-ratios-label">Aspect ratio</span>
           <button type="button" class="roi-ratio-btn active" data-ratio="free">Freeform</button>
-          <button type="button" class="roi-ratio-btn" data-ratio="1:1">Square 1:1</button>
-          <button type="button" class="roi-ratio-btn" data-ratio="3:4">Vertical 3:4</button>
-          <button type="button" class="roi-ratio-btn" data-ratio="9:16">Vertical 9:16</button>
-          <button type="button" class="roi-ratio-btn" data-ratio="4:3">Horizontal 4:3</button>
-          <button type="button" class="roi-ratio-btn" data-ratio="16:9">Horizontal 16:9</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="1:1">1:1</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="3:4">3:4</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="9:16">9:16</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="4:3">4:3</button>
+          <button type="button" class="roi-ratio-btn" data-ratio="16:9">16:9</button>
         </div>
+
         <div id="roiPlaceholder" class="roi-placeholder">Upload a Reference image first to enable ROI selection.</div>
         <canvas id="roiCanvas"></canvas>
         <div id="roiInfo" class="roi-info">No ROI selected — full image will be analyzed.</div>
-      </div>
 
-      <!-- Card 3: Display Settings -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">3. Display Settings</h2>
-          <span class="card-desc">Adjusting these values only affects the visual output, not the raw CSV data.</span>
-        </div>
-        <div class="grid-4">
-          <div class="form-group">
-            <label for="colormapSel">Colormap</label>
-            <select id="colormapSel" class="form-control">
-              <option value="JET">JET</option>
-              <option value="TURBO">TURBO</option>
-              <option value="VIRIDIS">VIRIDIS</option>
-            </select>
+        <!-- Named ROIs: multiple regions analyzed at once for per-ROI stats + SNR -->
+        <div class="mroi-section">
+          <div class="mroi-head">
+            <div class="settings-subhead">Named Regions <span class="tag">— per-ROI stats + signal-to-noise, analyzed together</span></div>
+            <button type="button" id="addRoiBtn" class="btn-secondary mroi-add" disabled>+ Add current box as named ROI</button>
           </div>
-          <div class="form-group">
-            <label for="denoiseToggle">Noise Reduction</label>
-            <label class="toggle-row">
-              <input type="checkbox" id="denoiseToggle" checked />
-              <span id="denoiseState" class="slider-val">On</span>
-            </label>
-            <div class="input-desc">Applies a median filter to the difference image to remove single-pixel speckle while keeping the gas jet. Only affects the displayed image, not the numbers.</div>
-          </div>
-          <div class="form-group">
-            <div class="slider-header"><label>Gain</label><span id="gainVal" class="slider-val">1.0×</span></div>
-            <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
-            <div class="input-desc">Makes the image brighter so faint flow is easier to see. Only changes how the image looks, not the numbers.</div>
-          </div>
-          <div class="form-group">
-            <div class="slider-header"><label>Noise floor</label><span id="floorVal" class="slider-val">0</span></div>
-            <input type="range" id="floorSlider" min="0" max="60" step="1" value="0" />
-            <div class="input-desc">Hides weak background noise by blacking out low pixels, so only the real flow shows.</div>
-          </div>
-          <div class="form-group">
-            <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">30</span></div>
-            <input type="range" id="threshSlider" min="5" max="80" step="1" value="30" />
-            <div class="input-desc">Sets how strong a pixel must be to count as "flow" in the Coverage % number. Higher = stricter.</div>
-          </div>
+          <div class="card-desc" style="margin-bottom: 1rem;">Draw a box above, then add it here. Tag one region as <strong>Background</strong> (quiet area, no flow) and others as <strong>Signal</strong> (jet center). When any named ROI exists, pressing <strong>Analyze</strong> also builds the SNR table below the diff images (SNR compares each region's mean to the background's mean/std).</div>
+          <div id="mroiList" class="mroi-list"></div>
         </div>
       </div>
 
-      <!-- Card 4: Experimental Parameters -->
+      <!-- Card 3: Line Profile (independent from ROI — its own canvas + diff preview) -->
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title">4. Experimental Parameters</h2>
-          <span class="card-desc">Variables to be logged into the CSV database.</span>
+          <div class="card-num">3</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Line Profile <span class="opt">Optional</span></h2>
+            <div class="card-desc">Drag a line across the jet on the difference preview (the jet is invisible on the raw reference, so this card shows the contrast-stretched diff). The plot shows diff intensity along the line — two peaks with a dip = the jet's two shear-layer edges.</div>
+          </div>
+          <button id="clearLineBtn" class="btn-secondary" style="display:none;">✕ Clear Line</button>
+        </div>
+
+        <div id="linePlaceholder" class="roi-placeholder">Upload both Reference and Test images first to build the difference preview.</div>
+        <canvas id="lineCanvas"></canvas>
+        <div id="lineBgStatus" class="line-hint"></div>
+        <div id="lineInfo" class="roi-info">No line drawn — drag across the jet at any angle.</div>
+        <div class="line-hint">Preview is contrast-stretched for visibility only — not the measured values.</div>
+
+        <div class="line-opts">
+          <label class="toggle-row">
+            <input type="checkbox" id="lineDenoiseToggle" />
+            <span class="toggle-track"></span>
+            <span id="lineDenoiseState" class="slider-val">Off</span>
+          </label>
+          <span class="line-opt-label">denoise diff before sampling (median filter)</span>
+          <button type="button" id="plotLineBtn" class="line-plot-btn" disabled>Plot Line Profile</button>
+        </div>
+
+        <!-- Chart shown inline right under the controls (no full-screen takeover)
+             so the line and its profile stay visible together while re-plotting. -->
+        <div id="lineChartInline" style="display:none;">
+          <div class="line-inline-head">
+            <span class="line-inline-title">Line Profile</span>
+            <span class="hint" id="lineProfileHint">diff intensity along the drawn line</span>
+          </div>
+          <div id="lineChartWrap"><canvas id="lineChart" width="1000" height="360"></canvas></div>
+          <div class="line-hint">Two peaks with a dip between them = the jet is showing as two shear-layer edges, not a filled core.</div>
+        </div>
+      </div>
+
+      <!-- Card 4: Settings -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-num">4</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Settings <span class="opt">Optional</span></h2>
+            <div class="card-desc">Display controls change only the rendered image; measurement controls change the numbers saved to CSV.</div>
+          </div>
+        </div>
+
+        <!-- Display: visual output only -->
+        <div class="settings-section">
+          <div class="settings-subhead">Display <span class="tag">— affect the rendered image only, not saved stats</span></div>
+          <div class="grid-4">
+            <div class="form-group">
+              <label for="colormapSel">Colormap</label>
+              <select id="colormapSel" class="form-control">
+                <option value="JET">JET</option>
+                <option value="TURBO">TURBO</option>
+                <option value="VIRIDIS">VIRIDIS</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="denoiseToggle">Noise Reduction</label>
+              <label class="toggle-row">
+                <input type="checkbox" id="denoiseToggle" checked />
+                <span class="toggle-track"></span>
+                <span id="denoiseState" class="slider-val">On</span>
+              </label>
+              <div class="input-desc">Median filter on the difference image removes single-pixel speckle while keeping the gas jet. Display only.</div>
+            </div>
+            <div class="form-group">
+              <div class="slider-header"><label>Gain</label><span id="gainVal" class="slider-val">1.0×</span></div>
+              <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
+              <div class="input-desc">Brightens the image so faint flow is easier to see. Display only.</div>
+            </div>
+            <div class="form-group">
+              <div class="slider-header"><label>Noise floor</label><span id="floorVal" class="slider-val">8</span></div>
+              <input type="range" id="floorSlider" min="0" max="60" step="1" value="8" />
+              <button id="autoFloorBtn" class="btn-secondary btn-auto">Auto</button>
+              <div class="input-desc">Blacks out low pixels to hide weak background noise, so only real flow shows. Auto locks the slider and fills in the 95th percentile of the difference image (just above background noise) when you press Analyze. Click Auto again to unlock and set it manually.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Measurement: affects saved Coverage % -->
+        <div class="settings-section">
+          <div class="settings-subhead">Measurement <span class="tag">— changes the Coverage % saved to CSV</span></div>
+          <div class="grid-2">
+            <div class="form-group">
+              <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">12</span></div>
+              <input type="range" id="threshSlider" min="5" max="80" step="1" value="12" />
+              <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
+              <div class="input-desc">How strong a pixel must be to count as "flow" in Coverage %. Higher = stricter. Auto locks the slider and fills in the 99th percentile of the difference image when you press Analyze. Click Auto again to unlock. It assumes the analyzed region is mostly background; a tight ROI around the jet may read too high.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 5: Experimental Parameters -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-num">5</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Experimental Parameters <span class="opt">Optional</span></h2>
+            <div class="card-desc">Variables logged into the CSV database.</div>
+          </div>
         </div>
         <div class="grid-4">
-          <div class="form-group"><label>Gas Type</label><input type="text" id="gasType" class="form-control" placeholder="e.g., Ar, He, None" /></div>
+          <div class="form-group"><label>Gas Type</label><input type="text" id="gasType" class="form-control" placeholder="Ar, He, None" /></div>
           <div class="form-group"><label>Flow Rate (L/min)</label><input type="number" id="flowRate" class="form-control" step="0.1" value="0.0" /></div>
           <div class="form-group"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
-          <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" placeholder="e.g., 5kV / 2kHz" /></div>
+          <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" placeholder="5kV / 2kHz" /></div>
         </div>
       </div>
 
-      <!-- Card 5: Camera & Layout Settings -->
+      <!-- Card 6: Camera & Layout Settings -->
       <div class="card">
-        <div class="card-header"><h2 class="card-title">5. Camera & Layout Settings</h2></div>
-        <div class="grid-4" style="margin-bottom: 1rem;">
+        <div class="card-header">
+          <div class="card-num">6</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Camera &amp; Layout Settings <span class="opt">Optional</span></h2>
+            <div class="card-desc">Optical setup and geometry for the trial record.</div>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-bottom: 1.1rem;">
           <div class="form-group"><label>Camera Type</label><input type="text" id="camType" class="form-control" /></div>
-          <div class="form-group"><label>Focus Setting</label><input type="text" id="focusSetting" class="form-control" value="Manual Focus (MF)" /></div>
+          <div class="form-group"><label>Focus Setting</label><input type="text" id="focusSetting" class="form-control" value="Manual Focus" /></div>
           <div class="form-group"><label>ISO</label><input type="text" id="iso" class="form-control" /></div>
           <div class="form-group"><label>Shutter Speed</label><input type="text" id="shutter" class="form-control" /></div>
         </div>
-        <div class="grid-4" style="margin-bottom: 1rem;">
+        <div class="grid-4" style="margin-bottom: 1.1rem;">
           <div class="form-group"><label>Aperture</label><input type="text" id="aperture" class="form-control" /></div>
           <div class="form-group"><label>Cam-BG Dist (cm)</label><input type="number" id="camDist" class="form-control" /></div>
           <div class="form-group"><label>Nozzle-BG Dist (cm)</label><input type="number" id="nozDist" class="form-control" /></div>
@@ -246,8 +608,8 @@
         <div class="form-group"><label>Notes / Vibration Issues</label><input type="text" id="notes" class="form-control" /></div>
       </div>
 
-      <div class="action-container">
-        <button id="analyzeBtn" disabled>Run Analysis</button>
+      <div class="action-bar">
+        <button id="analyzeBtn" disabled>Analyze</button>
         <div id="status">Please upload both Reference and Test images to continue.</div>
       </div>
     </div>
@@ -255,7 +617,10 @@
 
   <div id="resultView">
     <div class="rv-bar">
-      <button id="backBtn" class="back-btn">← Back to Setup</button>
+      <button id="backBtn" class="back-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+        Back to Setup
+      </button>
       <div class="rv-title">Analysis Result</div>
 
       <div class="stat-badge">
@@ -272,11 +637,15 @@
       </div>
     </div>
 
+    <div class="input-desc" id="statsNote">
+      These values (peak, mean, coverage) are qualitative diagnostic indicators in arbitrary grayscale units (0&ndash;255), not physical measurements. They are based on intensity difference, which mixes real refractive-index change with lighting, camera movement, and noise. Use them to compare runs under the same setup, not as absolute gas quantities. A reference-vs-reference control shot is needed to establish the noise floor before these numbers can be trusted.
+    </div>
+
     <div class="rv-panel">
       <div class="rv-panel-head">
-        <h3>Visualized Images <span style="color:var(--muted); font-size:0.8rem; font-weight:normal; margin-left:10px;">(Click image to expand)</span></h3>
+        <h3>Visualized Images <span class="hint">click image to expand</span></h3>
         <button id="dlZipBtn" class="dl-zip-btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Download ZIP
         </button>
       </div>
@@ -286,25 +655,113 @@
       <div class="image-frame">
         <div class="image-box" onclick="openFullscreen('grayImg')">
           <div class="image-title">Grayscale Difference</div>
-          <img id="grayImg" src="" alt="Grayscale diff" />
+          <img id="grayImg" alt="Grayscale diff" />
         </div>
         <div class="image-box" onclick="openFullscreen('colorImg')">
-          <div class="image-title">Pseudo-color (<span id="colorCmapName">JET</span>)</div>
-          <img id="colorImg" src="" alt="Color diff" />
+          <div class="image-title">Pseudo-color · <span id="colorCmapName">JET</span></div>
+          <img id="colorImg" alt="Color diff" />
         </div>
       </div>
+    </div>
+
+    <div class="rv-panel" id="roiResultPanel" style="display:none;">
+      <div class="rv-panel-head">
+        <h3>ROI SNR Table <span class="hint">per-region stats &amp; signal-to-noise</span></h3>
+      </div>
+      <table class="roi-table">
+        <thead>
+          <tr>
+            <th>ROI</th><th>Role</th><th>Mean</th><th>Peak (p99)</th>
+            <th>Std (noise)</th><th>Coverage %</th><th>SNR (mean)</th><th>SNR (std)</th>
+          </tr>
+        </thead>
+        <tbody id="roiTableBody"></tbody>
+      </table>
+      <div id="roiTableNote" class="roi-note"></div>
+    </div>
+
+    <div class="rv-panel">
+      <div class="rv-panel-head">
+        <h3>Trial Summary <span class="hint">all logged values for this run</span></h3>
+      </div>
+      <table class="result-table">
+        <tbody id="resultTableBody"></tbody>
+      </table>
     </div>
   </div>
 
   <div id="imgModal" class="modal" onclick="closeFullscreen()">
     <span class="modal-close">&times;</span>
-    <img id="modalImg" src="" />
+    <img id="modalImg" />
+  </div>
+
+  <!-- Capture Guide popup -->
+  <div id="captureGuideModal" class="cg-modal" role="dialog" aria-modal="true" aria-labelledby="captureGuideTitle">
+    <div class="cg-dialog">
+      <div class="cg-dialog-head">
+        <span class="cg-i" aria-hidden="true">i</span>
+        <div>
+          <h2 id="captureGuideTitle">Capture Guide</h2>
+          <div class="sub">How to shoot reliable reference / test pairs</div>
+        </div>
+        <button type="button" class="cg-dialog-close" id="captureGuideClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="cg-body">
+        <div class="cg-group">
+          <h3>Camera setup</h3>
+          <ul>
+            <li>Lock everything to manual: focus, ISO, exposure, and white balance. Auto settings can change between the two shots and look like a fake signal.</li>
+            <li>Use a tripod. Use the self-timer or a remote so you never touch the camera between the reference and test shots.</li>
+            <li>Take the reference (flow off) and test (flow on) back-to-back. Do not move the camera, nozzle, or background in between.</li>
+          </ul>
+        </div>
+        <div class="cg-group">
+          <h3>Background &amp; lighting</h3>
+          <ul>
+            <li>Fill the frame with the speckle background. Keep it flat and wrinkle-free.</li>
+            <li>Light the background evenly and brightly. Avoid glare or reflections going straight into the lens.</li>
+            <li>For plasma runs, bright background lighting helps wash out the faint purple glow so it doesn't count as signal.</li>
+          </ul>
+        </div>
+        <div class="cg-group">
+          <h3>Distances (keep fixed and write them down)</h3>
+          <ul>
+            <li>Keep the nozzle-to-background distance around 10 cm so results match the earlier gas runs.</li>
+            <li>Record camera, nozzle, and background distances every time in the parameter fields.</li>
+          </ul>
+        </div>
+        <div class="cg-group">
+          <h3>Get reliable numbers</h3>
+          <ul>
+            <li>Take a control pair first: two "flow off" shots. Run them through the tool to see your noise floor before judging any real signal.</li>
+            <li>Draw an ROI around the jet so the numbers come from where the flow is, not the whole image.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
+    // Capture Guide popup
+    (function () {
+      const openBtn = document.getElementById('captureGuideOpen');
+      const closeBtn = document.getElementById('captureGuideClose');
+      const modal = document.getElementById('captureGuideModal');
+      const open = () => modal.classList.add('open');
+      const close = () => modal.classList.remove('open');
+      openBtn.addEventListener('click', open);
+      closeBtn.addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('open')) close();
+      });
+    })();
+
     const refInput = document.getElementById('refInput');
     const testInput = document.getElementById('testInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
+    const autoFloorBtn = document.getElementById('autoFloorBtn');
+    const autoThreshBtn = document.getElementById('autoThreshBtn');
     const statusEl = document.getElementById('status');
 
     let currentAnalysisData = {};
@@ -313,6 +770,18 @@
     document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
     document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
     document.getElementById('denoiseToggle').onchange = (e) => document.getElementById('denoiseState').textContent = e.target.checked ? 'On' : 'Off';
+
+    // Keep range fill in sync with value
+    function paintRange(el) {
+      const min = +el.min, max = +el.max, val = +el.value;
+      const pct = ((val - min) / (max - min)) * 100;
+      el.style.backgroundSize = pct + '% 100%';
+    }
+    ['gainSlider', 'floorSlider', 'threshSlider'].forEach(id => {
+      const el = document.getElementById(id);
+      paintRange(el);
+      el.addEventListener('input', () => paintRange(el));
+    });
 
     document.getElementById('backBtn').onclick = () => {
       document.body.classList.remove('results-mode');
@@ -338,6 +807,13 @@
     let roiActive = false;
     let roiNorm = null; // {x, y, w, h} all normalized 0-1
     let roiRatio = null; // locked width/height, or null for freeform
+
+    // Named multi-ROI (drives /analyze_rois; independent of the single ROI above)
+    const MROI_SIGNAL_COLOR = '#7cc4ff';
+    const MROI_BG_COLOR = '#e0a05a';
+    let multiRois = []; // [{name, role, x, y, w, h}] normalized 0-1
+
+    const clamp01 = v => Math.max(0, Math.min(1, v));
 
     function getROICanvasPos(e) {
       const rect = roiCanvas.getBoundingClientRect();
@@ -379,12 +855,29 @@
       if (roiImageEl.complete && roiImageEl.naturalWidth) {
         roiCtx.drawImage(roiImageEl, 0, 0, roiCanvas.width, roiCanvas.height);
       }
+      // Committed named ROIs (drawn under the active drag box) with a name label.
+      multiRois.forEach(m => {
+        const x = m.x * roiCanvas.width, y = m.y * roiCanvas.height;
+        const w = m.w * roiCanvas.width, h = m.h * roiCanvas.height;
+        const col = m.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR;
+        roiCtx.setLineDash([]);
+        roiCtx.strokeStyle = col;
+        roiCtx.lineWidth = 2;
+        roiCtx.strokeRect(x, y, w, h);
+        roiCtx.font = '600 13px "IBM Plex Mono", monospace';
+        roiCtx.textBaseline = 'middle';
+        const tw = roiCtx.measureText(m.name).width;
+        roiCtx.fillStyle = col;
+        roiCtx.fillRect(x, y, tw + 12, 18);
+        roiCtx.fillStyle = '#0b0c0d';
+        roiCtx.fillText(m.name, x + 6, y + 10);
+      });
       if (roiActive || roiDragging) {
         const r = getROIRect();
         if (r.w > 0 && r.h > 0) {
-          roiCtx.fillStyle = 'rgba(79, 70, 229, 0.25)';
+          roiCtx.fillStyle = 'rgba(255, 255, 255, 0.16)';
           roiCtx.fillRect(r.x, r.y, r.w, r.h);
-          roiCtx.strokeStyle = '#818cf8';
+          roiCtx.strokeStyle = '#ffffff';
           roiCtx.lineWidth = 2;
           roiCtx.setLineDash([6, 3]);
           roiCtx.strokeRect(r.x, r.y, r.w, r.h);
@@ -402,7 +895,7 @@
         const wp = (roiNorm.w * 100).toFixed(1);
         const hp = (roiNorm.h * 100).toFixed(1);
         infoEl.textContent = `Selected: ${wp}% × ${hp}% of image, from (${xp}%, ${yp}%)`;
-        infoEl.style.color = '#818cf8';
+        infoEl.style.color = 'var(--text)';
         clearBtn.style.display = '';
         roiCanvas.classList.add('has-roi');
       } else {
@@ -411,6 +904,7 @@
         clearBtn.style.display = 'none';
         roiCanvas.classList.remove('has-roi');
       }
+      updateAddRoiBtn();
     }
 
     function clearROI() {
@@ -504,6 +998,292 @@
       if (roiDragging) finalizeROI();
     });
 
+    // ===== Line Profile (Card 3) — fully independent from ROI =====
+    // Own canvas, own state, own diff-preview background. Nothing here reads or
+    // writes the ROI canvas/state, so drawing in one card never disturbs the other.
+    const lineCanvas = document.getElementById('lineCanvas');
+    const lineCtx = lineCanvas.getContext('2d');
+    const LINE_COLOR = '#ffd166';
+    let lineImageEl = new Image();      // the contrast-stretched diff preview
+    let lineDiffPreviewSrc = null;      // cached data URL; invalidated when ref/test changes
+    let lineDiffFetching = false;
+    let lineNorm = null;                // {x0, y0, x1, y1} normalized 0-1
+    let lineDragging = false;
+    let lineStart = { x: 0, y: 0 };
+    let lineEnd = { x: 0, y: 0 };
+
+    const setLineBgStatus = msg => { document.getElementById('lineBgStatus').textContent = msg || ''; };
+
+    function getLineCanvasPos(e) {
+      const rect = lineCanvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) / rect.width * lineCanvas.width,
+        y: (e.clientY - rect.top) / rect.height * lineCanvas.height
+      };
+    }
+
+    function drawLineCanvas() {
+      lineCtx.clearRect(0, 0, lineCanvas.width, lineCanvas.height);
+      if (lineImageEl.complete && lineImageEl.naturalWidth) {
+        lineCtx.drawImage(lineImageEl, 0, 0, lineCanvas.width, lineCanvas.height);
+      }
+      // Live line during a drag, otherwise the committed line.
+      let ln = null;
+      if (lineDragging) {
+        ln = { x0: lineStart.x, y0: lineStart.y, x1: lineEnd.x, y1: lineEnd.y };
+      } else if (lineNorm) {
+        ln = {
+          x0: lineNorm.x0 * lineCanvas.width, y0: lineNorm.y0 * lineCanvas.height,
+          x1: lineNorm.x1 * lineCanvas.width, y1: lineNorm.y1 * lineCanvas.height,
+        };
+      }
+      if (ln) {
+        lineCtx.setLineDash([]);
+        lineCtx.strokeStyle = LINE_COLOR;
+        lineCtx.lineWidth = 2.5;
+        lineCtx.beginPath();
+        lineCtx.moveTo(ln.x0, ln.y0);
+        lineCtx.lineTo(ln.x1, ln.y1);
+        lineCtx.stroke();
+        [[ln.x0, ln.y0], [ln.x1, ln.y1]].forEach(([hx, hy]) => {
+          lineCtx.fillStyle = LINE_COLOR;
+          lineCtx.beginPath(); lineCtx.arc(hx, hy, 4.5, 0, Math.PI * 2); lineCtx.fill();
+          lineCtx.fillStyle = '#0b0c0d';
+          lineCtx.beginPath(); lineCtx.arc(hx, hy, 2, 0, Math.PI * 2); lineCtx.fill();
+        });
+      }
+    }
+
+    // Free drag only: click-drag draws one straight line at any angle.
+    lineCanvas.addEventListener('mousedown', e => {
+      e.preventDefault();
+      if (!(lineImageEl.complete && lineImageEl.naturalWidth)) return; // no preview yet
+      lineDragging = true;
+      lineStart = getLineCanvasPos(e);
+      lineEnd = lineStart;
+      lineNorm = null;
+      drawLineCanvas();
+    });
+
+    lineCanvas.addEventListener('mousemove', e => {
+      if (!lineDragging) return;
+      lineEnd = getLineCanvasPos(e);
+      drawLineCanvas();
+    });
+
+    lineCanvas.addEventListener('mouseup', e => {
+      if (!lineDragging) return;
+      lineEnd = getLineCanvasPos(e);
+      finalizeLine();
+    });
+
+    lineCanvas.addEventListener('mouseleave', () => {
+      if (lineDragging) finalizeLine();
+    });
+
+    // Commit the current drag as the active line (endpoints normalized 0-1). A
+    // near-zero drag clears it. The user may still drag again to adjust.
+    function finalizeLine() {
+      lineDragging = false;
+      const dx = lineEnd.x - lineStart.x, dy = lineEnd.y - lineStart.y;
+      if (Math.hypot(dx, dy) < 5) {
+        lineNorm = null;
+      } else {
+        lineNorm = {
+          x0: clamp01(lineStart.x / lineCanvas.width), y0: clamp01(lineStart.y / lineCanvas.height),
+          x1: clamp01(lineEnd.x / lineCanvas.width), y1: clamp01(lineEnd.y / lineCanvas.height),
+        };
+      }
+      updateLineInfo();
+      drawLineCanvas();
+    }
+
+    function updateLineInfo() {
+      const el = document.getElementById('lineInfo');
+      const plotBtn = document.getElementById('plotLineBtn');
+      const clearBtn = document.getElementById('clearLineBtn');
+      if (lineNorm) {
+        const f = v => (v * 100).toFixed(0);
+        el.textContent = `Line: (${f(lineNorm.x0)}%, ${f(lineNorm.y0)}%) -> (${f(lineNorm.x1)}%, ${f(lineNorm.y1)}%)`;
+        el.style.color = 'var(--text)';
+        plotBtn.disabled = false;
+        clearBtn.style.display = '';
+      } else {
+        el.textContent = 'No line drawn — drag across the jet at any angle.';
+        el.style.color = 'var(--muted)';
+        plotBtn.disabled = true;
+        clearBtn.style.display = 'none';
+      }
+    }
+
+    function clearLine() {
+      lineNorm = null;
+      lineDragging = false;
+      updateLineInfo();
+      drawLineCanvas();
+    }
+    document.getElementById('clearLineBtn').onclick = e => { e.stopPropagation(); clearLine(); };
+
+    document.getElementById('lineDenoiseToggle').onchange = (e) =>
+      document.getElementById('lineDenoiseState').textContent = e.target.checked ? 'On' : 'Off';
+
+    // Fetch the contrast-stretched diff once, cache it, size the canvas to it, and
+    // draw it as the line-drawing background. Display-only: /line_profile still
+    // samples the raw diff, so measurements are unaffected by this preview.
+    async function fetchLineDiffPreview() {
+      if (lineDiffFetching) return;
+      if (!(refInput.files.length && testInput.files.length)) {
+        setLineBgStatus('Upload both Reference and Test first.');
+        return;
+      }
+      lineDiffFetching = true;
+      setLineBgStatus('Building difference preview…');
+      const fd = new FormData();
+      fd.append('reference', refInput.files[0]);
+      fd.append('test', testInput.files[0]);
+      try {
+        const res = await fetch('/diff_preview', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Server error (${res.status})`);
+        }
+        const data = await res.json();
+        lineDiffPreviewSrc = 'data:image/png;base64,' + data.preview;
+        await new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => { lineImageEl = img; resolve(); };
+          img.onerror = resolve;
+          img.src = lineDiffPreviewSrc;
+        });
+        // Size the canvas to the preview (same dims as reference -> coords map 1:1).
+        const MAX_W = 1200;
+        const scale = Math.min(1, MAX_W / lineImageEl.naturalWidth);
+        lineCanvas.width = Math.round(lineImageEl.naturalWidth * scale);
+        lineCanvas.height = Math.round(lineImageEl.naturalHeight * scale);
+        document.getElementById('linePlaceholder').style.display = 'none';
+        lineCanvas.classList.add('has-image');
+        setLineBgStatus('');
+        drawLineCanvas();
+      } catch (err) {
+        setLineBgStatus('Diff preview failed: ' + err.message);
+      } finally {
+        lineDiffFetching = false;
+      }
+    }
+
+    // Reset the line canvas back to its placeholder when images are missing.
+    function resetLineCanvas() {
+      lineDiffPreviewSrc = null;
+      lineImageEl = new Image();
+      lineCanvas.classList.remove('has-image');
+      document.getElementById('linePlaceholder').style.display = '';
+      drawLineCanvas();
+    }
+
+    // Draw the /line_profile response as a chart with the Canvas 2D API.
+    function drawLineChart(data) {
+      const canvas = document.getElementById('lineChart');
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const values = data.values || [];
+      const smoothed = data.smoothed || [];
+      const n = values.length;
+      if (!n) return;
+
+      const padL = 54, padR = 22, padT = 26, padB = 42;
+      const plotW = W - padL - padR, plotH = H - padT - padB;
+      const yMax = Math.max(10, ...values, ...smoothed); // avoid a flat 0-scale
+      const xAt = i => padL + (n === 1 ? 0 : (i / (n - 1)) * plotW);
+      const yAt = v => padT + plotH - (v / yMax) * plotH;
+
+      // Gridlines + Y labels (0, mid, max)
+      ctx.font = '11px "IBM Plex Mono", monospace';
+      ctx.textBaseline = 'middle';
+      [0, 0.5, 1].forEach(fr => {
+        const yv = yMax * fr, y = yAt(yv);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+        ctx.fillStyle = '#969a9f'; ctx.textAlign = 'right';
+        ctx.fillText(Math.round(yv), padL - 8, y);
+      });
+
+      // Axes
+      ctx.strokeStyle = '#3b3e43'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
+
+      // X labels (start -> end of the line)
+      ctx.fillStyle = '#969a9f'; ctx.textBaseline = 'top';
+      ctx.textAlign = 'left'; ctx.fillText('0 · start', padL, padT + plotH + 10);
+      ctx.textAlign = 'right'; ctx.fillText('end · 1', padL + plotW, padT + plotH + 10);
+      ctx.textAlign = 'center';
+      ctx.fillText('position along line', padL + plotW / 2, padT + plotH + 10);
+
+      const plot = (series, color, width) => {
+        ctx.strokeStyle = color; ctx.lineWidth = width;
+        ctx.beginPath();
+        series.forEach((v, i) => { const x = xAt(i), y = yAt(v); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.stroke();
+      };
+      plot(values, 'rgba(124,196,255,0.35)', 1.5);   // raw, faint
+      plot(smoothed, LINE_COLOR, 2.5);                // smoothed, bold
+
+      // Peak marker on the smoothed series
+      let pIdx = 0;
+      smoothed.forEach((v, i) => { if (v > smoothed[pIdx]) pIdx = i; });
+      const pX = xAt(pIdx), pY = yAt(smoothed[pIdx]);
+      ctx.fillStyle = LINE_COLOR;
+      ctx.beginPath(); ctx.arc(pX, pY, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e6e7e9'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('peak ' + data.peak, pX, pY - 7);
+    }
+
+    document.getElementById('plotLineBtn').onclick = async () => {
+      if (!lineNorm) { alert('Draw a line across the jet on the difference preview first.'); return; }
+      if (!(refInput.files.length && testInput.files.length)) {
+        alert('Upload both Reference and Test images first.');
+        return;
+      }
+      const btn = document.getElementById('plotLineBtn');
+      const orig = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Plotting...';
+
+      const fd = new FormData();
+      fd.append('reference', refInput.files[0]);
+      fd.append('test', testInput.files[0]);
+      fd.append('x0', lineNorm.x0.toFixed(6));
+      fd.append('y0', lineNorm.y0.toFixed(6));
+      fd.append('x1', lineNorm.x1.toFixed(6));
+      fd.append('y1', lineNorm.y1.toFixed(6));
+      fd.append('samples', '200');
+      fd.append('denoise', document.getElementById('lineDenoiseToggle').checked ? 'true' : 'false');
+
+      try {
+        const res = await fetch('/line_profile', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Server error (${res.status})`);
+        }
+        const data = await res.json();
+        drawLineChart(data);
+        document.getElementById('lineProfileHint').textContent =
+          `peak ${data.peak} · mean ${data.mean} · length ${data.length_px}px · ${data.samples} samples`;
+        // Show the chart inline under the controls (no takeover) so the user can
+        // keep adjusting the line and re-plot without leaving the canvas.
+        const inline = document.getElementById('lineChartInline');
+        inline.style.display = 'block';
+        inline.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (err) {
+        alert('Line profile failed: ' + err.message);
+      } finally {
+        btn.innerHTML = orig;
+        btn.disabled = !lineNorm;
+      }
+    };
+
     document.getElementById('clearRoiBtn').onclick = e => {
       e.stopPropagation();
       clearROI();
@@ -553,6 +1333,17 @@
 
       document.getElementById(fileNameId).textContent = file.name;
 
+      // A new ref/test invalidates the Line Profile diff preview: rebuild it if
+      // both images are present, otherwise fall back to the placeholder.
+      if (inputEl === refInput || inputEl === testInput) {
+        if (refInput.files.length && testInput.files.length) {
+          fetchLineDiffPreview();
+        } else {
+          resetLineCanvas();
+          setLineBgStatus('Upload both Reference and Test first.');
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = e => {
         document.getElementById(previewBoxId).innerHTML = `<img src="${e.target.result}" />`;
@@ -569,10 +1360,184 @@
     setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
     setupZone('testZone', testInput, 'testPreviewBox', 'testFileName');
 
+    // ===== Named multi-ROI (per-region stats + SNR via /analyze_rois) =====
+    const addRoiBtn = document.getElementById('addRoiBtn');
+    const mroiListEl = document.getElementById('mroiList');
+
+    // Add button is usable only while a box is drawn. The named ROIs are analyzed
+    // by the main Analyze button (see runNamedRoiAnalysis), not a separate one.
+    function updateAddRoiBtn() { addRoiBtn.disabled = !roiNorm; }
+
+    function renderMroiList() {
+      if (!multiRois.length) {
+        mroiListEl.innerHTML = '<div class="mroi-empty">No named ROIs yet. Draw a box above, then add it here.</div>';
+        return;
+      }
+      mroiListEl.innerHTML = '';
+      multiRois.forEach((m, i) => {
+        const item = document.createElement('div');
+        item.className = 'mroi-item';
+
+        const sw = document.createElement('span');
+        sw.className = 'mroi-swatch';
+        sw.style.background = m.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR;
+
+        const name = document.createElement('input');
+        name.className = 'mroi-name';
+        name.type = 'text';
+        name.value = m.name;
+        name.oninput = () => { m.name = name.value; drawROICanvas(); };
+
+        const role = document.createElement('button');
+        role.type = 'button';
+        role.className = 'mroi-role ' + m.role;
+        role.textContent = m.role === 'background' ? 'Background' : 'Signal';
+        role.onclick = () => {
+          m.role = m.role === 'background' ? 'signal' : 'background';
+          renderMroiList();
+          drawROICanvas();
+        };
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'mroi-del';
+        del.innerHTML = '&times;';
+        del.title = 'Delete ROI';
+        del.onclick = () => { multiRois.splice(i, 1); renderMroiList(); drawROICanvas(); };
+
+        item.append(sw, name, role, del);
+        mroiListEl.appendChild(item);
+      });
+    }
+
+    addRoiBtn.onclick = () => {
+      if (!roiNorm) return;
+      multiRois.push({
+        name: `ROI ${multiRois.length + 1}`,
+        role: 'signal',
+        x: roiNorm.x, y: roiNorm.y, w: roiNorm.w, h: roiNorm.h,
+      });
+      renderMroiList();
+      drawROICanvas();
+    };
+
+    // Run the named-ROI SNR pass as part of the main Analyze. Called after the
+    // /analyze result is shown; hides the panel when no named ROI is defined.
+    async function runNamedRoiAnalysis() {
+      const panel = document.getElementById('roiResultPanel');
+      if (!multiRois.length) { panel.style.display = 'none'; return; }
+
+      const fd = new FormData();
+      fd.append('reference', refInput.files[0]);
+      fd.append('test', testInput.files[0]);
+      fd.append('threshold', document.getElementById('threshSlider').value);
+      fd.append('rois', JSON.stringify(multiRois.map(m => ({
+        name: m.name, role: m.role,
+        x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
+      }))));
+
+      const res = await fetch('/analyze_rois', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error (${res.status})`);
+      }
+      renderRoiTable(await res.json());
+    }
+
+    // Render the /analyze_rois response into the results-view SNR table.
+    function renderRoiTable(data) {
+      const rows = data.rois || [];
+      const bg = data.background || {};
+      const hasBg = bg.mean != null;
+      const fmt = (v) => (v == null ? '—' : v);
+
+      document.getElementById('roiTableBody').innerHTML = rows.map(r => {
+        const isBg = r.role === 'background';
+        const roleTag = `<span class="role-tag ${isBg ? 'background' : 'signal'}">${isBg ? 'Background' : 'Signal'}</span>`;
+        const nm = (r.name || '').replace(/</g, '&lt;');
+        return `<tr class="${isBg ? 'is-bg' : ''}">` +
+          `<td class="roi-name-cell">${nm}</td><td>${roleTag}</td>` +
+          `<td>${r.mean}</td><td>${r.peak}</td><td>${r.std}</td><td>${r.coverage}%</td>` +
+          `<td>${fmt(r.snr_mean)}</td><td>${fmt(r.snr_std)}</td></tr>`;
+      }).join('');
+
+      const note = document.getElementById('roiTableNote');
+      if (hasBg) {
+        note.textContent = `SNR (mean) = ROI mean ÷ background mean; SNR (std) = ROI mean ÷ background std. ` +
+          `Background reference: mean ${bg.mean}, std ${bg.std} (threshold ${data.threshold}). ` +
+          `A background region's own SNR (mean) ≈ 1 is expected.`;
+      } else {
+        note.textContent = 'No region was tagged as Background, so the SNR columns are blank. ' +
+          'Tag one quiet region as Background and re-run to enable SNR.';
+      }
+      document.getElementById('roiResultPanel').style.display = 'flex';
+    }
+
+    renderMroiList();       // show the empty-state hint on first load
+
+    // ===== Auto (armed) sliders =====
+    // Clicking Auto only LOCKS the slider and marks it "armed" (faint look); no value
+    // is fetched yet. When Analyze runs, applyAutoValues() asks /suggest_params for the
+    // suggested value and fills in each armed slider just before the analysis request.
+    // `field` is the matching key in the /suggest_params response.
+    const autoControls = [
+      { btn: autoFloorBtn, slider: document.getElementById('floorSlider'), valEl: document.getElementById('floorVal'), field: 'noise_floor' },
+      { btn: autoThreshBtn, slider: document.getElementById('threshSlider'), valEl: document.getElementById('threshVal'), field: 'threshold' },
+    ];
+
+    autoControls.forEach(({ btn, slider, valEl }) => {
+      btn.onclick = () => {
+        const armed = btn.classList.toggle('active');
+        slider.disabled = armed;           // lock while armed
+        valEl.classList.toggle('is-auto', armed);
+      };
+    });
+
+    // Fill in every armed slider from /suggest_params. Runs once (one request covers
+    // both values). Throws on failure so Analyze can surface the error and abort.
+    async function applyAutoValues() {
+      const armed = autoControls.filter(c => c.btn.classList.contains('active'));
+      if (!armed.length) return;
+
+      const fd = new FormData();
+      fd.append('reference', refInput.files[0]);
+      fd.append('test', testInput.files[0]);
+      if (roiNorm) {
+        fd.append('roi_x', roiNorm.x.toFixed(6));
+        fd.append('roi_y', roiNorm.y.toFixed(6));
+        fd.append('roi_w', roiNorm.w.toFixed(6));
+        fd.append('roi_h', roiNorm.h.toFixed(6));
+      }
+
+      const res = await fetch('/suggest_params', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error (${res.status})`);
+      }
+      const data = await res.json();
+
+      armed.forEach(c => {
+        c.slider.value = data[c.field];
+        c.valEl.textContent = c.slider.value;
+        paintRange(c.slider);
+      });
+    }
+
     // ===== Run Analysis =====
     document.getElementById('analyzeBtn').onclick = async () => {
-      statusEl.innerHTML = '<span class="spinner"></span>Processing Images...';
+      statusEl.innerHTML = '<span class="spinner"></span> Processing Images...';
       analyzeBtn.disabled = true;
+
+      // Fill in any "Auto" (armed) sliders before reading their values below.
+      try {
+        await applyAutoValues();
+      } catch (err) {
+        statusEl.style.color = '#f0616d';
+        statusEl.textContent = `Auto failed: ${err.message}`;
+        analyzeBtn.disabled = false;
+        setTimeout(() => { statusEl.style.color = 'var(--muted)'; }, 3000);
+        return;
+      }
 
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
@@ -658,18 +1623,81 @@
           roiBar.style.display = 'none';
         }
 
+        renderResultTable();
+
+        // Also build the named-ROI SNR table if any regions were defined. Kept
+        // non-fatal so a failure here never blocks the diff images above.
+        try {
+          await runNamedRoiAnalysis();
+        } catch (roiErr) {
+          document.getElementById('roiResultPanel').style.display = 'none';
+          console.error('ROI SNR analysis failed:', roiErr);
+        }
+
         statusEl.textContent = 'Analysis complete.';
         document.body.classList.add('results-mode');
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
       } catch (err) {
-        statusEl.style.color = '#ef4444';
+        statusEl.style.color = '#f0616d';
         statusEl.textContent = `Error: ${err.message}`;
       } finally {
         analyzeBtn.disabled = false;
         setTimeout(() => { statusEl.style.color = 'var(--muted)'; }, 3000);
       }
     };
+
+    // ===== Result summary table (display-only; reads currentAnalysisData) =====
+    function renderResultTable() {
+      const d = currentAnalysisData;
+      if (!d || !d.log) return;
+      const s = d.stats || {};
+      const disp = d.display || {};
+      const roi = d.roi;
+      const roiTxt = roi
+        ? `${(roi.w * 100).toFixed(1)}% × ${(roi.h * 100).toFixed(1)}% from (${(roi.x * 100).toFixed(1)}%, ${(roi.y * 100).toFixed(1)}%)`
+        : 'Full image';
+
+      const rows = [
+        ['group', 'Output Metrics'],
+        ['Peak Diff (p99)', s.peak],
+        ['Mean Diff', s.mean],
+        ['Coverage %', s.coverage != null ? s.coverage + '%' : ''],
+        ['ROI', roiTxt],
+        ['group', 'Experiment'],
+        ['Gas Type', d.log.gas_type],
+        ['Flow Rate (L/min)', d.log.flow_rate],
+        ['Plasma Status', d.log.plasma_status],
+        ['Plasma Condition', d.log.plasma_condition],
+        ['group', 'Display'],
+        ['Colormap', disp.cmap],
+        ['Gain', disp.gain != null ? disp.gain + '×' : ''],
+        ['Noise Floor', disp.floor],
+        ['Coverage Threshold', disp.thresh],
+        ['Noise Reduction', disp.denoise],
+        ['group', 'Camera & Layout'],
+        ['Camera Type', d.log.CamType],
+        ['Focus', d.log.Focus],
+        ['ISO', d.log.Iso],
+        ['Shutter', d.log.Shutter],
+        ['Aperture', d.log.Aperture],
+        ['Cam-BG Dist (cm)', d.log.CamDist],
+        ['Nozzle-BG Dist (cm)', d.log.NozDist],
+        ['Lighting', d.log.Light],
+        ['Notes', d.log.Notes],
+        ['group', 'Files'],
+        ['Reference File', d.refName],
+        ['Test File', d.testName]
+      ];
+
+      const tbody = document.getElementById('resultTableBody');
+      tbody.innerHTML = rows.map(([k, v]) => {
+        if (k === 'group') return `<tr class="grp"><td colspan="2">${v}</td></tr>`;
+        const val = (v === undefined || v === null || v === '') ? '—' : String(v);
+        const cls = val === '—' ? 'v empty' : 'v';
+        return `<tr><td class="k">${k}</td><td class="${cls}">${val.replace(/</g, '&lt;')}</td></tr>`;
+      }).join('');
+    }
 
     // ===== Download ZIP =====
     document.getElementById('dlZipBtn').onclick = async () => {

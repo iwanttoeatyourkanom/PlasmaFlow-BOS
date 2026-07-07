@@ -19,38 +19,44 @@ COLORMAPS = {
 }
 
 DEFAULT_COVERAGE_THRESHOLD = 12
-# Kernel for the median filter applied to the diff when noise reduction is on.
-# Median removes single-pixel speckle well without smearing the gas jet the way
-# a Gaussian blur would.
+# Median kernel for /line_profile's denoise and /diff_preview's smoothing (removes speckle without smearing the jet).
 MEDIAN_KSIZE = 5
 
-# Raw diff value that maps to full white when rendering. Using a FIXED scale
-# (instead of cv2.normalize's per-image min/max) means display brightness tracks
-# the actual diff magnitude: turning on noise reduction then reads as a cleaner
-# image rather than a brighter one, and different experiments become comparable
-# at the same intensity. Tuned so a faint He gas jet stays clearly visible;
-# lower this to brighten weak signals (e.g. Ar), raise it to compress bright ones.
+# Fixed (not per-image min/max) diff->white scale, so brightness stays comparable across experiments.
 DISPLAY_FULL_SCALE = 64
 
-LOG_FILE = "experimental_log.csv"
-LOG_HEADER = [
-    "Date / Time", "Gas Type", "Flow Rate (L/min)", "Plasma Status", "Plasma Condition",
-    "Camera Type", "Focus", "ISO", "Shutter", "Aperture",
-    "Cam Dist (cm)", "Nozzle Dist (cm)", "Lighting", "Notes",
-    "Colormap", "Gain", "Noise Floor", "Threshold",
-    "Reference File Name", "Test File Name", "Peak Diff p99 (0-255)", "Mean Diff (0-255)", "Coverage %",
-    "ROI X (norm)", "ROI Y (norm)", "ROI W (norm)", "ROI H (norm)",
-    "Denoise",
+# Three accumulating CSVs joined by run_id, minted once per Analyze press.
+RUNS_FILE = "runs.csv"
+RUNS_HEADER = [
+    "run_id", "datetime", "gas_type", "flow_rate", "plasma_status", "plasma_condition",
+    "is_control", "cam_type", "iso", "shutter", "aperture", "cam_dist", "nozzle_dist",
+    "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
+    "threshold", "peak", "mean", "coverage",
 ]
+ROI_REGIONS_FILE = "roi_regions.csv"
+ROI_REGIONS_HEADER = [
+    "run_id", "roi_name", "role", "mean", "peak", "std", "coverage", "snr_mean", "snr_std",
+]
+LINE_PROFILES_FILE = "line_profiles.csv"
+LINE_PROFILES_HEADER = [
+    "run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise",
+]
+
+
+def _append_csv(path: str, header: list, rows: list):
+    """Append rows to an accumulating CSV, writing the header on first use."""
+    file_exists = os.path.isfile(path)
+    with open(path, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(header)
+        writer.writerows(rows)
 
 
 def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None):
     """Decode ref/test images and return their grayscale absolute difference.
 
-    Shared by run_bos and /suggest_params so the suggested noise floor/threshold
-    are computed from exactly the same diff that analysis uses. roi_norm, if given,
-    is (x, y, w, h) in normalized 0-1 coordinates; both images are cropped to it
-    before differencing.
+    Shared by run_bos and /suggest_params. roi_norm, if given, is normalized (x, y, w, h) 0-1; both images are cropped to it first.
     """
     ref = cv2.imdecode(np.frombuffer(ref_bytes, np.uint8), cv2.IMREAD_COLOR)
     test = cv2.imdecode(np.frombuffer(test_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -85,37 +91,24 @@ def run_bos(
     threshold: int = DEFAULT_COVERAGE_THRESHOLD,
     noise_floor: int = 0,
     roi_norm: tuple = None,
-    denoise: bool = True,
 ) -> dict:
-    """Compute the BOS difference between a reference and test image.
+    """Compute the BOS diff and return rendered images plus stats.
 
-    roi_norm, if given, is (x, y, w, h) in normalized 0-1 coordinates; both
-    images are cropped to it before differencing so stats reflect the ROI only.
-
-    Display parameters (colormap, gain, noise_floor, denoise) affect the rendered
-    grayscale/pseudo-color output but never the reported stats, which are always
-    derived from the raw diff. When `denoise` is on, a median filter is applied to
-    the diff before rendering only (removes single-pixel speckle without smearing
-    the gas jet).
+    Stats always come from the raw diff, never the display-adjusted render (colormap/gain/noise_floor).
     """
     diff = compute_diff(ref_bytes, test_bytes, roi_norm)
 
-    # Stats come from the raw diff, before denoise/noise floor/gain/normalize.
-    # "peak" is the 99th percentile, a robust max: it reports the strong-signal
-    # level while ignoring lone noise pixels that would otherwise set diff.max().
+    # peak = 99th percentile, a robust max that ignores lone noise pixels.
     peak = int(round(float(np.percentile(diff, 99))))
     coverage = float(np.count_nonzero(diff > threshold)) / diff.size * 100.0
 
     # --- Display rendering (does not affect stats) ---
-    # Median filter only smooths the rendered image, not the numbers above.
-    render_diff = cv2.medianBlur(diff, MEDIAN_KSIZE) if denoise else diff
+    render_diff = diff
 
     if noise_floor > 0:
         render_diff = render_diff.copy()
         render_diff[render_diff <= noise_floor] = 0
 
-    # Fixed-scale mapping (not per-image min/max): brightness reflects the real
-    # diff magnitude, so denoise cleans the image instead of just brightening it.
     scale = 255.0 / DISPLAY_FULL_SCALE
     diff_vis = np.clip(render_diff.astype(np.float32) * scale * gain, 0, 255).astype(np.uint8)
 
@@ -126,10 +119,9 @@ def run_bos(
     if roi_norm is not None:
         _, _, nw, nh = roi_norm
         roi_text = f" | ROI: {nw * 100:.0f}%x{nh * 100:.0f}%"
-    denoise_text = "ON" if denoise else "OFF"
     footer = (
         f"Cmap: {colormap.upper()} | Gain: {gain}x | Noise: {noise_floor} | "
-        f"Thresh: {threshold} | Denoise: {denoise_text}{roi_text}"
+        f"Thresh: {threshold}{roi_text}"
     )
 
     final_gray = _stamp_footer(diff_vis, footer)
@@ -137,9 +129,23 @@ def run_bos(
     _, gray_buf = cv2.imencode(".png", final_gray)
     _, color_buf = cv2.imencode(".png", final_color)
 
+    # Raw view: same scale, but no noise-floor/gain applied.
+    raw_vis = np.clip(diff.astype(np.float32) * scale, 0, 255).astype(np.uint8)
+    raw_footer = "RAW - no noise floor"
+    final_raw = _stamp_footer(raw_vis, raw_footer)
+    _, raw_buf = cv2.imencode(".png", final_raw)
+
+    # Thresholded view: matches the same threshold coverage % is counted against.
+    thresh_vis = np.where(diff > threshold, 255, 0).astype(np.uint8)
+    thresh_footer = f"THRESHOLDED - threshold: {threshold}"
+    final_thresh = _stamp_footer(thresh_vis, thresh_footer)
+    _, thresh_buf = cv2.imencode(".png", final_thresh)
+
     return {
         "grayscale": base64.b64encode(gray_buf).decode(),
         "color": base64.b64encode(color_buf).decode(),
+        "raw": base64.b64encode(raw_buf).decode(),
+        "thresholded": base64.b64encode(thresh_buf).decode(),
         "stats": {
             "peak": peak,
             "mean": round(float(diff.mean()), 2),
@@ -169,27 +175,6 @@ def _stamp_footer(img, text):
     return cv2.vconcat([img, footer])
 
 
-def append_experiment_to_log(data: dict):
-    """Append one experiment row to the CSV log, writing the header on first use."""
-    file_exists = os.path.isfile(LOG_FILE)
-    with open(LOG_FILE, mode="a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(LOG_HEADER)
-        writer.writerow([
-            data.get("timestamp", ""), data.get("gas_type", ""), data.get("flow_rate", ""),
-            data.get("plasma_status", ""), data.get("plasma_condition", ""),
-            data.get("CamType", ""), data.get("Focus", ""), data.get("Iso", ""),
-            data.get("Shutter", ""), data.get("Aperture", ""),
-            data.get("CamDist", ""), data.get("NozDist", ""), data.get("Light", ""), data.get("Notes", ""),
-            data.get("colormap", ""), data.get("gain", ""), data.get("noise_floor", ""), data.get("threshold", ""),
-            data.get("ref_filename", ""), data.get("test_filename", ""),
-            data.get("max_diff", ""), data.get("mean_diff", ""), data.get("coverage", ""),
-            data.get("roi_x", ""), data.get("roi_y", ""), data.get("roi_w", ""), data.get("roi_h", ""),
-            data.get("denoise", ""),
-        ])
-
-
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
@@ -203,15 +188,17 @@ async def analyze(
     gain: float = Form(1.0),
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
     noise_floor: int = Form(0),
-    denoise: bool = Form(True),
     roi_x: float = Form(0.0),
     roi_y: float = Form(0.0),
     roi_w: float = Form(0.0),
     roi_h: float = Form(0.0),
+    rois: str = Form(""),
+    line: str = Form(""),
     gas_type: str = Form("None"),
     flow_rate: str = Form(""),
     plasma_status: str = Form("OFF"),
     plasma_condition: str = Form(""),
+    is_control: str = Form("OFF"),
     CamType: str = Form(""),
     Focus: str = Form(""),
     Iso: str = Form(""),
@@ -222,6 +209,7 @@ async def analyze(
     Light: str = Form(""),
     Notes: str = Form(""),
 ):
+    """Run the main BOS analysis and commit one run to runs.csv (plus roi_regions.csv / line_profiles.csv if `rois` / `line` are sent)."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
@@ -231,32 +219,79 @@ async def analyze(
     try:
         result = run_bos(
             ref_bytes, test_bytes, colormap, gain=gain, threshold=threshold,
-            noise_floor=noise_floor, roi_norm=roi_norm, denoise=denoise,
+            noise_floor=noise_floor, roi_norm=roi_norm,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    append_experiment_to_log({
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "gas_type": gas_type,
-        "flow_rate": flow_rate,
-        "plasma_status": plasma_status,
-        "plasma_condition": plasma_condition,
-        "CamType": CamType, "Focus": Focus, "Iso": Iso, "Shutter": Shutter, "Aperture": Aperture,
-        "CamDist": CamDist, "NozDist": NozDist, "Light": Light, "Notes": Notes,
-        "colormap": colormap, "gain": gain, "noise_floor": noise_floor, "threshold": threshold,
-        "ref_filename": reference.filename,
-        "test_filename": test.filename,
-        "max_diff": result["stats"]["peak"],
-        "mean_diff": result["stats"]["mean"],
-        "coverage": result["stats"]["coverage"],
-        "roi_x": round(roi_x, 6) if roi_norm else "",
-        "roi_y": round(roi_y, 6) if roi_norm else "",
-        "roi_w": round(roi_w, 6) if roi_norm else "",
-        "roi_h": round(roi_h, 6) if roi_norm else "",
-        "denoise": "ON" if denoise else "OFF",
-    })
+    # ROI list / line profile sample the full-image diff, independent of the quick-ROI crop above.
+    roi_result = None
+    line_result = None
+    if rois or line:
+        diff_full = compute_diff(ref_bytes, test_bytes, None)
 
+        if rois:
+            try:
+                roi_list = json.loads(rois)
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=400, detail="rois must be a valid JSON list.")
+            if isinstance(roi_list, list) and roi_list:
+                try:
+                    roi_result = analyze_roi_list(diff_full, roi_list, threshold)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc))
+
+        if line:
+            try:
+                line_spec = json.loads(line)
+                lx0, ly0 = float(line_spec["x0"]), float(line_spec["y0"])
+                lx1, ly1 = float(line_spec["x1"]), float(line_spec["y1"])
+                line_denoise = bool(line_spec.get("denoise", False))
+            except (ValueError, TypeError, KeyError):
+                raise HTTPException(status_code=400, detail="line must be JSON {x0,y0,x1,y1,denoise}.")
+            try:
+                line_result = sample_line_profile(diff_full, lx0, ly0, lx1, ly1, denoise=line_denoise)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            # Echo inputs so the results view carries the values logged below.
+            line_result.update({
+                "x0": round(lx0, 6), "y0": round(ly0, 6),
+                "x1": round(lx1, 6), "y1": round(ly1, 6),
+                "denoise": line_denoise,
+            })
+
+    # --- Commit this run to the three linked CSVs (one shared run_id) ---
+    now = datetime.now()
+    run_id = now.strftime("%Y%m%d_%H%M%S")
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    _append_csv(RUNS_FILE, RUNS_HEADER, [[
+        run_id, timestamp, gas_type, flow_rate, plasma_status, plasma_condition,
+        is_control, CamType, Iso, Shutter, Aperture, CamDist, NozDist,
+        Light, Notes, reference.filename, test.filename, colormap, gain, noise_floor,
+        threshold,
+        result["stats"]["peak"], result["stats"]["mean"], result["stats"]["coverage"],
+    ]])
+
+    if roi_result:
+        _append_csv(ROI_REGIONS_FILE, ROI_REGIONS_HEADER, [
+            [run_id, r["name"], r["role"], r["mean"], r["peak"], r["std"], r["coverage"],
+             "" if r["snr_mean"] is None else r["snr_mean"],
+             "" if r["snr_std"] is None else r["snr_std"]]
+            for r in roi_result["rois"]
+        ])
+
+    if line_result:
+        _append_csv(LINE_PROFILES_FILE, LINE_PROFILES_HEADER, [[
+            run_id, line_result["x0"], line_result["y0"], line_result["x1"], line_result["y1"],
+            line_result["length_px"], line_result["peak"], line_result["mean"],
+            line_result["width_px"], "ON" if line_result["denoise"] else "OFF",
+        ]])
+
+    result["run_id"] = run_id
+    result["datetime"] = timestamp
+    result["rois"] = roi_result
+    result["line"] = line_result
     return result
 
 
@@ -269,13 +304,7 @@ async def suggest_params(
     roi_w: float = Form(0.0),
     roi_h: float = Form(0.0),
 ):
-    """Suggest a noise floor and coverage threshold from the diff image.
-
-    Uses the same diff as run_bos (decode -> resize -> gray -> ROI crop -> absdiff),
-    then sets noise_floor to the 95th percentile and threshold to the 99th
-    percentile — just above the background noise level, assuming the analyzed
-    region is mostly background.
-    """
+    """Suggest noise_floor (95th pct) and threshold (99th pct) from the same diff as run_bos, assuming the region is mostly background."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
@@ -294,12 +323,7 @@ async def suggest_params(
 
 
 def _crop_diff(diff, roi_norm: tuple):
-    """Crop a full-image diff to a normalized (x, y, w, h) ROI.
-
-    Uses the same clamping as compute_diff so a slightly out-of-range selection
-    stays valid. Cropping the shared diff (instead of re-differencing per ROI)
-    keeps every region's numbers consistent with /analyze.
-    """
+    """Crop a full-image diff to a normalized (x, y, w, h) ROI (same clamping as compute_diff)."""
     nx, ny, nw, nh = roi_norm
     H, W = diff.shape
     rx = max(0, min(int(nx * W), W - 1))
@@ -310,17 +334,47 @@ def _crop_diff(diff, roi_norm: tuple):
 
 
 def _roi_stats(sub, threshold: int) -> dict:
-    """Per-ROI stats from a cropped diff, matching /analyze's definitions.
-
-    peak is the 99th percentile (robust max); coverage is the % of pixels above
-    threshold; std is the diff spread, used as a noise proxy for the SNR value.
-    """
+    """Per-ROI stats matching /analyze's definitions (std doubles as the noise proxy for SNR)."""
     return {
         "mean": round(float(sub.mean()), 2),
         "peak": int(round(float(np.percentile(sub, 99)))),
         "std": round(float(sub.std()), 2),
         "coverage": round(float(np.count_nonzero(sub > threshold)) / sub.size * 100.0, 2),
         "pixels": int(sub.size),
+    }
+
+
+def analyze_roi_list(diff, roi_list: list, threshold: int) -> dict:
+    """Per-region stats + SNR for named ROIs, shared by /analyze_rois and /analyze. role="background" ROIs set the noise reference. Raises ValueError on a malformed entry."""
+    rows = []
+    bg_means, bg_stds = [], []
+    for i, roi in enumerate(roi_list):
+        try:
+            roi_norm = (float(roi["x"]), float(roi["y"]), float(roi["w"]), float(roi["h"]))
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(f"ROI #{i + 1} needs numeric x, y, w, h.")
+        role = roi.get("role", "signal")
+        name = str(roi.get("name") or f"ROI {i + 1}")
+
+        stats = _roi_stats(_crop_diff(diff, roi_norm), threshold)
+        stats["name"] = name
+        stats["role"] = role
+        rows.append(stats)
+        if role == "background":
+            bg_means.append(stats["mean"])
+            bg_stds.append(stats["std"])
+
+    bg_mean = round(sum(bg_means) / len(bg_means), 2) if bg_means else None
+    bg_std = round(sum(bg_stds) / len(bg_stds), 2) if bg_stds else None
+
+    for row in rows:
+        row["snr_mean"] = round(row["mean"] / bg_mean, 2) if bg_mean else None
+        row["snr_std"] = round(row["mean"] / bg_std, 2) if bg_std else None
+
+    return {
+        "rois": rows,
+        "background": {"mean": bg_mean, "std": bg_std},
+        "threshold": threshold,
     }
 
 
@@ -331,14 +385,7 @@ async def analyze_rois(
     rois: str = Form(...),
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
 ):
-    """Analyze several named ROIs against one shared diff.
-
-    The full-image diff is computed ONCE, then cropped per ROI so every region's
-    numbers come from exactly the diff /analyze would produce (no re-differencing).
-    ROIs tagged role="background" set the noise level: their mean/std are averaged
-    into bg_mean/bg_std, and every ROI gets an SNR-like value — roi_mean / bg_mean
-    and roi_mean / bg_std. `rois` is a JSON list of {name, x, y, w, h, role}.
-    """
+    """Analyze named ROIs (`rois` = JSON list of {name, x, y, w, h, role}) against one shared diff. Display-only, no logging."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
@@ -352,41 +399,67 @@ async def analyze_rois(
     # Full-image diff once; each ROI is just a crop of it.
     try:
         diff = compute_diff(ref_bytes, test_bytes, None)
+        return analyze_roi_list(diff, roi_list, threshold)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # First pass: crop + stats for every ROI, collecting the background means/stds.
-    rows = []
-    bg_means, bg_stds = [], []
-    for i, roi in enumerate(roi_list):
-        try:
-            roi_norm = (float(roi["x"]), float(roi["y"]), float(roi["w"]), float(roi["h"]))
-        except (KeyError, TypeError, ValueError):
-            raise HTTPException(status_code=400, detail=f"ROI #{i + 1} needs numeric x, y, w, h.")
-        role = roi.get("role", "signal")
-        name = str(roi.get("name") or f"ROI {i + 1}")
 
-        stats = _roi_stats(_crop_diff(diff, roi_norm), threshold)
-        stats["name"] = name
-        stats["role"] = role
-        rows.append(stats)
-        if role == "background":
-            bg_means.append(stats["mean"])
-            bg_stds.append(stats["std"])
+def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
+                        samples: int = 200, denoise: bool = False) -> dict:
+    """Sample a diff along a straight line; shared by /line_profile and /analyze.
 
-    # Average the background ROIs into one noise reference (None if none tagged).
-    bg_mean = round(sum(bg_means) / len(bg_means), 2) if bg_means else None
-    bg_std = round(sum(bg_stds) / len(bg_stds), 2) if bg_stds else None
+    width_px is FWHM-style: span around the peak where the smoothed value stays above baseline + (peak - baseline)/2 (baseline = 10th pct). Raises ValueError on a zero-length line.
+    """
+    cx0, cy0, cx1, cy1 = (max(0.0, min(1.0, v)) for v in (x0, y0, x1, y1))
+    if cx0 == cx1 and cy0 == cy1:
+        raise ValueError("Line has zero length; drag to draw a line.")
+    samples = max(2, samples)
 
-    # Second pass: SNR-like ratios against the background (guard divide-by-zero).
-    for row in rows:
-        row["snr_mean"] = round(row["mean"] / bg_mean, 2) if bg_mean else None
-        row["snr_std"] = round(row["mean"] / bg_std, 2) if bg_std else None
+    if denoise:
+        diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
+
+    H, W = diff.shape
+    px0, px1 = cx0 * (W - 1), cx1 * (W - 1)
+    py0, py1 = cy0 * (H - 1), cy1 * (H - 1)
+    xs = np.linspace(px0, px1, samples).astype(np.float32).reshape(1, -1)
+    ys = np.linspace(py0, py1, samples).astype(np.float32).reshape(1, -1)
+
+    # remap wants 2D maps, so use a single row for this 1D line sample.
+    sampled = cv2.remap(
+        diff.astype(np.float32), xs, ys,
+        interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE,
+    )[0]
+
+    # Wide window (15) to suppress noise on faint signals.
+    window_size = 15
+    kernel = np.ones(window_size, dtype=np.float32) / float(window_size)
+    smoothed = np.convolve(sampled, kernel, mode="same")
+
+    length_px = int(round(float(np.hypot(px1 - px0, py1 - py0))))
+
+    # Ignore the outer 5% so an endpoint edge/noise spike can't steal the peak.
+    n = samples
+    margin = max(1, int(n * 0.05))
+    inner = smoothed[margin:n - margin]
+    p_idx = margin + int(np.argmax(inner)) if inner.size else min(margin, n - 1)
+
+    baseline = float(np.sort(smoothed)[int(0.1 * (n - 1))])
+    half_max = baseline + (float(smoothed[p_idx]) - baseline) / 2.0
+    w_lo = w_hi = p_idx
+    while w_lo > 0 and smoothed[w_lo - 1] >= half_max:
+        w_lo -= 1
+    while w_hi < n - 1 and smoothed[w_hi + 1] >= half_max:
+        w_hi += 1
+    width_px = int(round((w_hi - w_lo) / (n - 1) * length_px))
 
     return {
-        "rois": rows,
-        "background": {"mean": bg_mean, "std": bg_std},
-        "threshold": threshold,
+        "values": [round(float(v), 1) for v in sampled],
+        "smoothed": [round(float(v), 1) for v in smoothed],
+        "peak": int(round(float(np.percentile(sampled, 99)))),
+        "mean": round(float(sampled.mean()), 2),
+        "length_px": length_px,
+        "samples": samples,
+        "width_px": width_px,
     }
 
 
@@ -401,58 +474,15 @@ async def line_profile(
     samples: int = Form(200),
     denoise: bool = Form(False),
 ):
-    """Sample the BOS diff along a straight line and return the intensity profile.
-
-    Uses the same diff as /analyze (full image, no ROI). The endpoints are
-    normalized 0-1; the diff is sampled at `samples` evenly spaced points with
-    bilinear interpolation. A moving-average copy is returned alongside the raw
-    values so a jet's two-edge (shear-layer) structure — two peaks with a dip
-    between them — is easier to read on the chart.
-    """
+    """Sample the BOS diff along a straight line (full image, no ROI). Display-only, no logging."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
-    # Clamp endpoints into [0,1] and require a line with real length.
-    cx0, cy0, cx1, cy1 = (max(0.0, min(1.0, v)) for v in (x0, y0, x1, y1))
-    if cx0 == cx1 and cy0 == cy1:
-        raise HTTPException(status_code=400, detail="Line has zero length; drag to draw a line.")
-    samples = max(2, samples)
-
     try:
         diff = compute_diff(ref_bytes, test_bytes, None)
+        return sample_line_profile(diff, x0, y0, x1, y1, samples=samples, denoise=denoise)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
-    if denoise:
-        diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
-
-    H, W = diff.shape
-    # Normalized -> pixel coords, using the last valid index so both ends stay in bounds.
-    px0, px1 = cx0 * (W - 1), cx1 * (W - 1)
-    py0, py1 = cy0 * (H - 1), cy1 * (H - 1)
-    xs = np.linspace(px0, px1, samples).astype(np.float32).reshape(1, -1)
-    ys = np.linspace(py0, py1, samples).astype(np.float32).reshape(1, -1)
-
-    # Bilinear sample along the line (remap wants 2D maps, so use a single row).
-    sampled = cv2.remap(
-        diff.astype(np.float32), xs, ys,
-        interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE,
-    )[0]
-
-    # Light moving average (window 5) to bring out the two-edge dip.
-    kernel = np.ones(5, dtype=np.float32) / 5.0
-    smoothed = np.convolve(sampled, kernel, mode="same")
-
-    length_px = float(np.hypot(px1 - px0, py1 - py0))
-
-    return {
-        "values": [round(float(v), 1) for v in sampled],
-        "smoothed": [round(float(v), 1) for v in smoothed],
-        "peak": int(round(float(np.percentile(sampled, 99)))),
-        "mean": round(float(sampled.mean()), 2),
-        "length_px": int(round(length_px)),
-        "samples": samples,
-    }
 
 
 @app.post("/diff_preview")
@@ -460,15 +490,7 @@ async def diff_preview(
     reference: UploadFile = File(...),
     test: UploadFile = File(...),
 ):
-    """Return a contrast-stretched diff image for placing a line profile.
-
-    The Reference image (flow OFF) shows no jet, so drawing a line over it is
-    blind. This gives the frontend a DISPLAY-ONLY background where the jet is
-    visible: the full-frame diff clipped to its 2nd-98th percentile and scaled
-    to 0-255. The stretch is intentionally aggressive for visibility and is
-    NEVER fed into measurements (unlike the fixed-scale render in run_bos);
-    /line_profile still samples the raw diff via compute_diff.
-    """
+    """Return a contrast-stretched diff for placing a line profile (the reference alone shows no jet). Display-only, never used for measurement."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
@@ -477,7 +499,6 @@ async def diff_preview(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # Calm speckle so the jet reads more clearly (display-only, like run_bos).
     diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
 
     # Contrast-stretch to the 2nd-98th percentile so faint jets become visible.

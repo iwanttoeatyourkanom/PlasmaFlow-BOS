@@ -434,10 +434,69 @@
         </div>
       </div>
 
-      <!-- Card 2: ROI Selection -->
+      <!-- Card 2: Settings -->
       <div class="card">
         <div class="card-header">
           <div class="card-num">2</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Settings <span class="opt">Optional</span></h2>
+            <div class="card-desc">Display settings only change how the image looks. Measurement settings change the numbers saved to CSV.</div>
+          </div>
+        </div>
+
+        <!-- Display: visual output only -->
+        <div class="settings-section">
+          <div class="settings-subhead">Display <span class="tag">— looks only, saved numbers don't change</span></div>
+          <div class="grid-4">
+            <div class="form-group">
+              <label for="colormapSel">Colormap</label>
+              <select id="colormapSel" class="form-control">
+                <option value="JET">JET</option>
+                <option value="TURBO">TURBO</option>
+                <option value="VIRIDIS">VIRIDIS</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <div class="slider-header"><label>Gain</label><span id="gainVal" class="slider-val">1.0×</span></div>
+              <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
+              <div class="input-desc">Brightens the image so faint flow is easier to see. Looks only.</div>
+            </div>
+            <div class="form-group">
+              <div class="slider-header"><label>Noise floor</label><span id="floorVal" class="slider-val">8</span></div>
+              <input type="range" id="floorSlider" min="0" max="60" step="1" value="8" />
+              <button id="autoFloorBtn" class="btn-secondary btn-auto">Auto</button>
+              <div class="input-desc">Hides pixels below this level so weak background noise goes black. Auto locks the slider and picks a value just above the noise when you press Analyze; click Auto again to set it yourself.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Measurement: affects saved Coverage % -->
+        <div class="settings-section">
+          <div class="settings-subhead">Measurement <span class="tag">— changes the saved numbers</span></div>
+          <div class="grid-2">
+            <div class="form-group">
+              <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">12</span></div>
+              <input type="range" id="threshSlider" min="5" max="80" step="1" value="12" />
+              <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
+              <div class="input-desc">How strong a pixel must be to count as "flow". Higher = stricter. Affects both Coverage % and the region comparison table. Auto picks a value when you press Analyze (works best when the area is mostly background — a tight box around the jet may read too high); click Auto again to set it yourself.</div>
+            </div>
+            <div class="form-group">
+              <label for="alignToggle">Align Images</label>
+              <label class="toggle-row">
+                <input type="checkbox" id="alignToggle" />
+                <span class="toggle-track"></span>
+                <span id="alignState" class="slider-val">Off</span>
+              </label>
+              <div class="input-desc">Corrects for tiny camera/background shifts between the two photos, measured from the four corners only (never near the jet), before computing the difference.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: ROI Selection -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-num">3</div>
           <div class="card-head-text">
             <h2 class="card-title">ROI Selection <span class="opt">Optional</span></h2>
             <div class="card-desc">Drag a box on the preview below (the difference image, brightened so the jet is visible). Peak / mean / coverage then come from inside that box only. Skip it to use the whole image.</div>
@@ -483,10 +542,10 @@
         </div>
       </div>
 
-      <!-- Card 3: Line Profile (independent from ROI — its own canvas + diff preview) -->
+      <!-- Card 4: Line Profile (independent from ROI — its own canvas + diff preview) -->
       <div class="card">
         <div class="card-header">
-          <div class="card-num">3</div>
+          <div class="card-num">4</div>
           <div class="card-head-text">
             <h2 class="card-title">Line Profile <span class="opt">Optional</span></h2>
             <div class="card-desc">Drag a line across the jet on the preview below (the difference image, brightened so the jet is visible). The chart appears automatically when you let go and shows how strong the change is along that line.</div>
@@ -518,56 +577,6 @@
           </div>
           <div id="lineChartWrap"><canvas id="lineChart" width="1000" height="360"></canvas></div>
           <div class="line-hint">Peak marks the strongest point along the line — check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout). Two bumps with a dip between them = the jet's two edges.</div>
-        </div>
-      </div>
-
-      <!-- Card 4: Settings -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-num">4</div>
-          <div class="card-head-text">
-            <h2 class="card-title">Settings <span class="opt">Optional</span></h2>
-            <div class="card-desc">Display settings only change how the image looks. Measurement settings change the numbers saved to CSV.</div>
-          </div>
-        </div>
-
-        <!-- Display: visual output only -->
-        <div class="settings-section">
-          <div class="settings-subhead">Display <span class="tag">— looks only, saved numbers don't change</span></div>
-          <div class="grid-4">
-            <div class="form-group">
-              <label for="colormapSel">Colormap</label>
-              <select id="colormapSel" class="form-control">
-                <option value="JET">JET</option>
-                <option value="TURBO">TURBO</option>
-                <option value="VIRIDIS">VIRIDIS</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <div class="slider-header"><label>Gain</label><span id="gainVal" class="slider-val">1.0×</span></div>
-              <input type="range" id="gainSlider" min="1" max="8" step="0.5" value="1" />
-              <div class="input-desc">Brightens the image so faint flow is easier to see. Looks only.</div>
-            </div>
-            <div class="form-group">
-              <div class="slider-header"><label>Noise floor</label><span id="floorVal" class="slider-val">8</span></div>
-              <input type="range" id="floorSlider" min="0" max="60" step="1" value="8" />
-              <button id="autoFloorBtn" class="btn-secondary btn-auto">Auto</button>
-              <div class="input-desc">Hides pixels below this level so weak background noise goes black. Auto locks the slider and picks a value just above the noise when you press Analyze; click Auto again to set it yourself.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Measurement: affects saved Coverage % -->
-        <div class="settings-section">
-          <div class="settings-subhead">Measurement <span class="tag">— changes the saved numbers</span></div>
-          <div class="grid-2">
-            <div class="form-group">
-              <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">12</span></div>
-              <input type="range" id="threshSlider" min="5" max="80" step="1" value="12" />
-              <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
-              <div class="input-desc">How strong a pixel must be to count as "flow". Higher = stricter. Affects both Coverage % and the region comparison table. Auto picks a value when you press Analyze (works best when the area is mostly background — a tight box around the jet may read too high); click Auto again to set it yourself.</div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -668,11 +677,17 @@
 
       <div class="image-frame">
         <div class="image-box" onclick="openFullscreen('grayImg')">
-          <div class="image-title">Grayscale Difference</div>
+          <div class="image-title-row">
+            <div class="image-title">Grayscale Difference</div>
+            <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('grayImg', 'grayscale_diff.png')">Download</button>
+          </div>
           <img id="grayImg" alt="Grayscale diff" />
         </div>
         <div class="image-box" onclick="openFullscreen('colorImg')">
-          <div class="image-title">Pseudo-color · <span id="colorCmapName">JET</span></div>
+          <div class="image-title-row">
+            <div class="image-title">Pseudo-color · <span id="colorCmapName">JET</span></div>
+            <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('colorImg', 'pseudocolor_diff.png')">Download</button>
+          </div>
           <img id="colorImg" alt="Color diff" />
         </div>
       </div>
@@ -814,6 +829,7 @@
     document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
     document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
     document.getElementById('isControlToggle').onchange = (e) => document.getElementById('isControlState').textContent = e.target.checked ? 'On' : 'Off';
+    document.getElementById('alignToggle').onchange = (e) => document.getElementById('alignState').textContent = e.target.checked ? 'On' : 'Off';
 
     // Coalesce rapid edits (drag-adjust, renames, role toggles) into one request.
     function debounce(fn, ms) {
@@ -1380,6 +1396,7 @@
       fd.append('y1', lineNorm.y1.toFixed(6));
       fd.append('samples', '200');
       fd.append('denoise', document.getElementById('lineDenoiseToggle').checked ? 'true' : 'false');
+      fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
 
       try {
         const res = await fetch('/line_profile', { method: 'POST', body: fd });
@@ -1565,6 +1582,7 @@
         name: m.name, role: m.role,
         x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
       }))));
+      fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
 
       const res = await fetch('/analyze_rois', { method: 'POST', body: fd });
       if (!res.ok) {
@@ -1671,6 +1689,7 @@
         fd.append('roi_w', roiNorm.w.toFixed(6));
         fd.append('roi_h', roiNorm.h.toFixed(6));
       }
+      fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
 
       const res = await fetch('/suggest_params', { method: 'POST', body: fd });
       if (!res.ok) {
@@ -1709,6 +1728,7 @@
       fd.append('gain', document.getElementById('gainSlider').value);
       fd.append('threshold', document.getElementById('threshSlider').value);
       fd.append('noise_floor', document.getElementById('floorSlider').value);
+      fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
 
       if (roiNorm) {
         fd.append('roi_x', roiNorm.x.toFixed(6));
@@ -1755,7 +1775,8 @@
         cmap: document.getElementById('colormapSel').value,
         gain: document.getElementById('gainSlider').value,
         floor: document.getElementById('floorSlider').value,
-        thresh: document.getElementById('threshSlider').value
+        thresh: document.getElementById('threshSlider').value,
+        align: document.getElementById('alignToggle').checked ? 'ON' : 'OFF'
       };
 
       Object.entries(logFields).forEach(([key, val]) => fd.append(key, val));
@@ -1773,6 +1794,7 @@
           rawBase64: data.raw,
           thresholdedBase64: data.thresholded,
           stats: data.stats,
+          alignShift: data.align_shift,  // {dx, dy} if align was on, else null
           rois: data.rois,       // /analyze_rois-shaped result, or null
           line: data.line,       // line profile + echoed x0..y1/denoise, or null
           isControl: isControl,
@@ -1878,6 +1900,8 @@
         ['Gain', disp.gain != null ? disp.gain + '×' : ''],
         ['Noise Floor', disp.floor],
         ['Coverage Threshold', disp.thresh],
+        ['Align Images', disp.align],
+        ['Alignment Shift', d.alignShift ? `dx=${d.alignShift.dx}, dy=${d.alignShift.dy} px` : ''],
         ['group', 'Camera & Layout'],
         ['Camera Type', d.log.CamType],
         ['Focus', d.log.Focus],
@@ -1940,11 +1964,11 @@
           ["run_id", "datetime", "gas_type", "flow_rate", "plasma_status", "plasma_condition",
            "is_control", "cam_type", "iso", "shutter", "aperture", "cam_dist", "nozzle_dist",
            "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
-           "threshold", "peak", "mean", "coverage"],
+           "threshold", "align", "peak", "mean", "coverage"],
           [[runId, cad.datetime, l.gas_type, l.flow_rate, l.plasma_status, l.plasma_condition,
             cad.isControl, l.CamType, l.Iso, l.Shutter, l.Aperture, l.CamDist, l.NozDist,
             l.Light, l.Notes, cad.refName, cad.testName, d.cmap, d.gain, d.floor,
-            d.thresh, s.peak, s.mean, s.coverage]]
+            d.thresh, d.align, s.peak, s.mean, s.coverage]]
         ));
 
         zip.file("roi_regions.csv", makeCsv(

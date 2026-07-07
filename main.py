@@ -31,7 +31,7 @@ RUNS_HEADER = [
     "run_id", "datetime", "gas_type", "flow_rate", "plasma_status", "plasma_condition",
     "is_control", "cam_type", "iso", "shutter", "aperture", "cam_dist", "nozzle_dist",
     "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
-    "threshold", "peak", "mean", "coverage",
+    "threshold", "align", "peak", "mean", "coverage",
 ]
 ROI_REGIONS_FILE = "roi_regions.csv"
 ROI_REGIONS_HEADER = [
@@ -53,10 +53,53 @@ def _append_csv(path: str, header: list, rows: list):
         writer.writerows(rows)
 
 
-def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None):
-    """Decode ref/test images and return their grayscale absolute difference.
+CORNER_FRACTION = 0.15  # outer 15% x 15% of each corner, used only for alignment (never near the jet)
 
-    Shared by run_bos and /suggest_params. roi_norm, if given, is normalized (x, y, w, h) 0-1; both images are cropped to it first.
+
+def _phase_corr_shift(ref_patch: np.ndarray, test_patch: np.ndarray) -> tuple:
+    """(dx, dy) shift of test_patch relative to ref_patch via phase correlation."""
+    win = cv2.createHanningWindow((ref_patch.shape[1], ref_patch.shape[0]), cv2.CV_32F)
+    (dx, dy), _ = cv2.phaseCorrelate(ref_patch.astype(np.float32), test_patch.astype(np.float32), win)
+    return dx, dy
+
+
+def _estimate_shift(ref_gray: np.ndarray, test_gray: np.ndarray) -> dict:
+    """Estimate a whole-frame rigid shift from the four corner patches only.
+
+    The jet's own real signal lives away from the corners, so corner-only patches avoid
+    letting the BOS signal bias the shift estimate (and then get subtracted out as noise).
+    Returns the median (dx, dy) across corners plus each corner's own estimate for transparency.
+    """
+    H, W = ref_gray.shape
+    ch, cw = max(1, int(H * CORNER_FRACTION)), max(1, int(W * CORNER_FRACTION))
+    corners = {
+        "top_left": (slice(0, ch), slice(0, cw)),
+        "top_right": (slice(0, ch), slice(W - cw, W)),
+        "bottom_left": (slice(H - ch, H), slice(0, cw)),
+        "bottom_right": (slice(H - ch, H), slice(W - cw, W)),
+    }
+
+    per_corner = {}
+    for name, (ys, xs) in corners.items():
+        dx, dy = _phase_corr_shift(ref_gray[ys, xs], test_gray[ys, xs])
+        per_corner[name] = {"dx": round(dx, 3), "dy": round(dy, 3)}
+
+    dxs = [v["dx"] for v in per_corner.values()]
+    dys = [v["dy"] for v in per_corner.values()]
+    dx_med = float(np.median(dxs))
+    dy_med = float(np.median(dys))
+
+    return {"dx": round(dx_med, 3), "dy": round(dy_med, 3), "corners": per_corner}
+
+
+def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, align: bool = False):
+    """Decode ref/test images and return (diff, shift_info) as their grayscale absolute difference.
+
+    Shared by run_bos, /suggest_params, /analyze_rois, /line_profile, /diff_preview. roi_norm,
+    if given, is normalized (x, y, w, h) 0-1; both images are cropped to it first. If align is
+    True, a whole-frame translation (measured from the four corners only, see _estimate_shift)
+    is applied to test before diffing, and shift_info is the returned dict; otherwise shift_info
+    is None and behavior is bit-identical to before this option existed.
     """
     ref = cv2.imdecode(np.frombuffer(ref_bytes, np.uint8), cv2.IMREAD_COLOR)
     test = cv2.imdecode(np.frombuffer(test_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -69,6 +112,18 @@ def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None):
     ref_gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
     test_gray = cv2.cvtColor(test, cv2.COLOR_BGR2GRAY)
 
+    shift_info = None
+    if align:
+        shift_info = _estimate_shift(ref_gray, test_gray)
+        dx, dy = shift_info["dx"], shift_info["dy"]
+        # phaseCorrelate(ref, test) reports how far test has moved from ref, so we
+        # warp test back by the negative of that to undo the shift.
+        M = np.array([[1, 0, -dx], [0, 1, -dy]], dtype=np.float32)
+        test_gray = cv2.warpAffine(
+            test_gray, M, (test_gray.shape[1], test_gray.shape[0]),
+            flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE,
+        )
+
     if roi_norm is not None:
         nx, ny, nw, nh = roi_norm
         H, W = ref_gray.shape
@@ -80,7 +135,7 @@ def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None):
         ref_gray = ref_gray[ry:ry + rh, rx:rx + rw]
         test_gray = test_gray[ry:ry + rh, rx:rx + rw]
 
-    return cv2.absdiff(ref_gray, test_gray)
+    return cv2.absdiff(ref_gray, test_gray), shift_info
 
 
 def run_bos(
@@ -91,16 +146,18 @@ def run_bos(
     threshold: int = DEFAULT_COVERAGE_THRESHOLD,
     noise_floor: int = 0,
     roi_norm: tuple = None,
+    align: bool = False,
 ) -> dict:
     """Compute the BOS diff and return rendered images plus stats.
 
     Stats always come from the raw diff, never the display-adjusted render (colormap/gain/noise_floor).
     """
-    diff = compute_diff(ref_bytes, test_bytes, roi_norm)
+    diff, shift_info = compute_diff(ref_bytes, test_bytes, roi_norm, align=align)
 
     # peak = 99th percentile, a robust max that ignores lone noise pixels.
     peak = int(round(float(np.percentile(diff, 99))))
-    coverage = float(np.count_nonzero(diff > threshold)) / diff.size * 100.0
+    mean = round(float(diff.mean()), 2)
+    coverage = round(float(np.count_nonzero(diff > threshold)) / diff.size * 100.0, 2)
 
     # --- Display rendering (does not affect stats) ---
     render_diff = diff
@@ -115,14 +172,17 @@ def run_bos(
     cmap = COLORMAPS.get(colormap.upper(), cv2.COLORMAP_JET)
     diff_color = cv2.applyColorMap(diff_vis, cmap)
 
+    align_text = f"Align: {'ON' if align else 'OFF'}"
     roi_text = ""
     if roi_norm is not None:
         _, _, nw, nh = roi_norm
         roi_text = f" | ROI: {nw * 100:.0f}%x{nh * 100:.0f}%"
-    footer = (
-        f"Cmap: {colormap.upper()} | Gain: {gain}x | Noise: {noise_floor} | "
-        f"Thresh: {threshold}{roi_text}"
-    )
+    # Settings on their own line, computed result values on the line below.
+    footer = [
+        f"Cmap: {colormap.upper()} | Gain: {gain}x | NoiseFloor: {noise_floor} | "
+        f"Thresh: {threshold} | {align_text}{roi_text}",
+        f"Peak: {peak} | Mean: {mean} | Cov: {coverage}%",
+    ]
 
     final_gray = _stamp_footer(diff_vis, footer)
     final_color = _stamp_footer(diff_color, footer)
@@ -131,13 +191,19 @@ def run_bos(
 
     # Raw view: same scale, but no noise-floor/gain applied.
     raw_vis = np.clip(diff.astype(np.float32) * scale, 0, 255).astype(np.uint8)
-    raw_footer = "RAW - no noise floor"
+    raw_footer = [
+        f"RAW - no noise floor | {align_text}",
+        f"Peak: {peak} | Mean: {mean}",
+    ]
     final_raw = _stamp_footer(raw_vis, raw_footer)
     _, raw_buf = cv2.imencode(".png", final_raw)
 
     # Thresholded view: matches the same threshold coverage % is counted against.
     thresh_vis = np.where(diff > threshold, 255, 0).astype(np.uint8)
-    thresh_footer = f"THRESHOLDED - threshold: {threshold}"
+    thresh_footer = [
+        f"THRESHOLDED - threshold: {threshold} | {align_text}",
+        f"Coverage: {coverage}%",
+    ]
     final_thresh = _stamp_footer(thresh_vis, thresh_footer)
     _, thresh_buf = cv2.imencode(".png", final_thresh)
 
@@ -148,16 +214,46 @@ def run_bos(
         "thresholded": base64.b64encode(thresh_buf).decode(),
         "stats": {
             "peak": peak,
-            "mean": round(float(diff.mean()), 2),
-            "coverage": round(coverage, 2),
+            "mean": mean,
+            "coverage": coverage,
         },
+        "align_shift": {"dx": shift_info["dx"], "dy": shift_info["dy"]} if shift_info else None,
     }
 
 
-def _stamp_footer(img, text):
-    """Stamp a parameter footer onto an image (works for gray or BGR)."""
+def _stamp_footer(img, lines):
+    """Stamp a parameter footer onto an image (works for gray or BGR).
+
+    lines: list of logical footer lines (each a string with segments joined by
+    " | "), rendered one below another -- e.g. settings on one line, computed
+    result values (Peak/Mean/Cov/...) on the next. A line too wide for the
+    image is further wrapped onto continuation rows.
+    """
     h, w = img.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = max(0.5, w / 1200)
+    thickness = max(1, int(w / 1000))
+    text_h = max(cv2.getTextSize(line, font, font_scale, thickness)[0][1] for line in lines)
+
+    # Wrap each logical line on " | " so an overly long one grows taller (more
+    # rows) rather than clipping off the right edge or shrinking the font.
+    rows = []
+    for line in lines:
+        current = ""
+        for seg in line.split(" | "):
+            candidate = f"{current} | {seg}" if current else seg
+            if current and cv2.getTextSize(candidate, font, font_scale, thickness)[0][0] + 40 > w:
+                rows.append(current)
+                current = seg
+            else:
+                current = candidate
+        rows.append(current)
+
+    line_h = int(text_h * 1.8)
     footer_h = max(40, int(h * 0.05))
+    if len(rows) > 1:
+        footer_h = max(footer_h, line_h * len(rows))
+
     if img.ndim == 2:
         footer = np.zeros((footer_h, w), dtype=np.uint8)
         text_color = 255
@@ -165,13 +261,12 @@ def _stamp_footer(img, text):
         footer = np.zeros((footer_h, w, 3), dtype=np.uint8)
         text_color = (255, 255, 255)
 
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = max(0.5, w / 1200)
-    thickness = max(1, int(w / 1000))
-    text_h = cv2.getTextSize(text, font, font_scale, thickness)[0][1]
-    text_y = int(footer_h / 2 + text_h / 2)
-
-    cv2.putText(footer, text, (20, text_y), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    # Center the block of rows vertically; for one row this is the same
+    # footer_h/2 + text_h/2 baseline as before.
+    top_pad = (footer_h - line_h * len(rows)) / 2
+    for i, row in enumerate(rows):
+        text_y = int(top_pad + (i + 0.5) * line_h + text_h / 2)
+        cv2.putText(footer, row, (20, text_y), font, font_scale, text_color, thickness, cv2.LINE_AA)
     return cv2.vconcat([img, footer])
 
 
@@ -188,6 +283,7 @@ async def analyze(
     gain: float = Form(1.0),
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
     noise_floor: int = Form(0),
+    align: bool = Form(False),
     roi_x: float = Form(0.0),
     roi_y: float = Form(0.0),
     roi_w: float = Form(0.0),
@@ -219,7 +315,7 @@ async def analyze(
     try:
         result = run_bos(
             ref_bytes, test_bytes, colormap, gain=gain, threshold=threshold,
-            noise_floor=noise_floor, roi_norm=roi_norm,
+            noise_floor=noise_floor, roi_norm=roi_norm, align=align,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -228,7 +324,7 @@ async def analyze(
     roi_result = None
     line_result = None
     if rois or line:
-        diff_full = compute_diff(ref_bytes, test_bytes, None)
+        diff_full, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
 
         if rois:
             try:
@@ -269,7 +365,7 @@ async def analyze(
         run_id, timestamp, gas_type, flow_rate, plasma_status, plasma_condition,
         is_control, CamType, Iso, Shutter, Aperture, CamDist, NozDist,
         Light, Notes, reference.filename, test.filename, colormap, gain, noise_floor,
-        threshold,
+        threshold, "ON" if align else "OFF",
         result["stats"]["peak"], result["stats"]["mean"], result["stats"]["coverage"],
     ]])
 
@@ -303,6 +399,7 @@ async def suggest_params(
     roi_y: float = Form(0.0),
     roi_w: float = Form(0.0),
     roi_h: float = Form(0.0),
+    align: bool = Form(False),
 ):
     """Suggest noise_floor (95th pct) and threshold (99th pct) from the same diff as run_bos, assuming the region is mostly background."""
     ref_bytes = await reference.read()
@@ -312,7 +409,7 @@ async def suggest_params(
     roi_norm = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
 
     try:
-        diff = compute_diff(ref_bytes, test_bytes, roi_norm)
+        diff, _ = compute_diff(ref_bytes, test_bytes, roi_norm, align=align)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -384,6 +481,7 @@ async def analyze_rois(
     test: UploadFile = File(...),
     rois: str = Form(...),
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
+    align: bool = Form(False),
 ):
     """Analyze named ROIs (`rois` = JSON list of {name, x, y, w, h, role}) against one shared diff. Display-only, no logging."""
     ref_bytes = await reference.read()
@@ -398,7 +496,7 @@ async def analyze_rois(
 
     # Full-image diff once; each ROI is just a crop of it.
     try:
-        diff = compute_diff(ref_bytes, test_bytes, None)
+        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
         return analyze_roi_list(diff, roi_list, threshold)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -473,13 +571,14 @@ async def line_profile(
     y1: float = Form(...),
     samples: int = Form(200),
     denoise: bool = Form(False),
+    align: bool = Form(False),
 ):
     """Sample the BOS diff along a straight line (full image, no ROI). Display-only, no logging."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
     try:
-        diff = compute_diff(ref_bytes, test_bytes, None)
+        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
         return sample_line_profile(diff, x0, y0, x1, y1, samples=samples, denoise=denoise)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -489,13 +588,14 @@ async def line_profile(
 async def diff_preview(
     reference: UploadFile = File(...),
     test: UploadFile = File(...),
+    align: bool = Form(False),
 ):
     """Return a contrast-stretched diff for placing a line profile (the reference alone shows no jet). Display-only, never used for measurement."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
     try:
-        diff = compute_diff(ref_bytes, test_bytes, None)
+        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

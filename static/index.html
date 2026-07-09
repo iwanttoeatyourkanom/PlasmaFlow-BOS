@@ -604,6 +604,15 @@
           <div class="form-group"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
           <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" placeholder="5kV / 2kHz" /></div>
         </div>
+        <div class="form-group">
+          <label for="isControlToggle">Control Run</label>
+          <label class="toggle-row">
+            <input type="checkbox" id="isControlToggle" />
+            <span class="toggle-track"></span>
+            <span id="isControlState" class="slider-val">Off</span>
+          </label>
+          <div class="input-desc">Control run (flow OFF vs OFF) — both photos taken with nothing flowing, to measure the setup's noise floor. Logged with the run.</div>
+        </div>
       </div>
 
       <!-- Card 6: Camera & Layout Settings -->
@@ -827,6 +836,7 @@
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
     document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
     document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
+    document.getElementById('isControlToggle').onchange = (e) => document.getElementById('isControlState').textContent = e.target.checked ? 'On' : 'Off';
     document.getElementById('alignToggle').onchange = (e) => document.getElementById('alignState').textContent = e.target.checked ? 'On' : 'Off';
     document.getElementById('denoiseToggle').onchange = (e) => document.getElementById('denoiseState').textContent = e.target.checked ? 'On' : 'Off';
 
@@ -1754,6 +1764,9 @@
           denoise: document.getElementById('lineDenoiseToggle').checked,
         }));
       }
+      const isControl = document.getElementById('isControlToggle').checked ? 'ON' : 'OFF';
+      fd.append('is_control', isControl);
+
       const logFields = {
         gas_type: document.getElementById('gasType').value,
         flow_rate: document.getElementById('flowRate').value,
@@ -1796,6 +1809,7 @@
           alignShift: data.align_shift,  // {dx, dy} if align was on, else null
           rois: data.rois,       // /analyze_rois-shaped result, or null
           line: data.line,       // line profile + echoed x0..y1/denoise, or null
+          isControl: isControl,
           log: logFields,
           display: displayFields,
           refName: refInput.files[0].name,
@@ -1892,6 +1906,7 @@
         ['Flow Rate (L/min)', d.log.flow_rate],
         ['Plasma Status', d.log.plasma_status],
         ['Plasma Condition', d.log.plasma_condition],
+        ['Control Run', d.isControl],
         ['group', 'Display'],
         ['Colormap', disp.cmap],
         ['Gain', disp.gain != null ? disp.gain + '×' : ''],
@@ -1963,7 +1978,7 @@
            "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
            "threshold", "align", "peak", "mean", "coverage", "denoise"],
           [[runId, cad.datetime, l.gas_type, l.flow_rate, l.plasma_status, l.plasma_condition,
-            'OFF', l.CamType, l.Iso, l.Shutter, l.Aperture, l.NozDist,
+            cad.isControl, l.CamType, l.Iso, l.Shutter, l.Aperture, l.NozDist,
             l.Light, l.Notes, cad.refName, cad.testName, d.cmap, d.gain, d.floor,
             d.thresh, d.align, s.peak, s.mean, s.coverage, d.denoise]]
         ));

@@ -446,7 +446,7 @@
 
         <!-- Display: visual output only -->
         <div class="settings-section">
-          <div class="settings-subhead">Display <span class="tag">— looks only, saved numbers don't change</span></div>
+          <div class="settings-subhead">Display <span class="tag">(looks only, saved numbers don't change)</span></div>
           <div class="grid-4">
             <div class="form-group">
               <label for="colormapSel">Colormap</label>
@@ -472,22 +472,31 @@
 
         <!-- Measurement: affects saved Coverage % -->
         <div class="settings-section">
-          <div class="settings-subhead">Measurement <span class="tag">— changes the saved numbers</span></div>
+          <div class="settings-subhead">Measurement <span class="tag">(changes the saved numbers)</span></div>
           <div class="grid-2">
             <div class="form-group">
               <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">12</span></div>
               <input type="range" id="threshSlider" min="5" max="80" step="1" value="12" />
               <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
-              <div class="input-desc">How strong a pixel must be to count as "flow". Higher = stricter. Affects both Coverage % and the region comparison table. Auto picks a value when you press Analyze (works best when the area is mostly background — a tight box around the jet may read too high); click Auto again to set it yourself.</div>
+              <div class="input-desc">How strong a pixel must be to count as "flow". Higher = stricter. Affects both Coverage % and the region comparison table. Auto picks a value when you press Analyze (works best when the area is mostly background; a tight box around the jet may read too high); click Auto again to set it yourself.</div>
             </div>
             <div class="form-group">
               <label for="alignToggle">Align Images</label>
               <label class="toggle-row">
-                <input type="checkbox" id="alignToggle" />
+                <input type="checkbox" id="alignToggle" checked />
                 <span class="toggle-track"></span>
-                <span id="alignState" class="slider-val">Off</span>
+                <span id="alignState" class="slider-val">On</span>
               </label>
               <div class="input-desc">Corrects for tiny camera/background shifts between the two photos, measured from the four corners only (never near the jet), before computing the difference.</div>
+            </div>
+            <div class="form-group">
+              <label for="denoiseToggle">Denoise</label>
+              <label class="toggle-row">
+                <input type="checkbox" id="denoiseToggle" />
+                <span class="toggle-track"></span>
+                <span id="denoiseState" class="slider-val">Off</span>
+              </label>
+              <div class="input-desc">Applies a median blur (5x5) to the difference image before computing Peak/Mean/Coverage, to knock down per-pixel sensor/speckle noise. This is separate from Noise Floor below: that only clips the display, this actually smooths the measured signal.</div>
             </div>
           </div>
         </div>
@@ -513,18 +522,18 @@
           <button type="button" class="roi-ratio-btn" data-ratio="16:9">16:9</button>
         </div>
 
-        <div id="roiPlaceholder" class="roi-placeholder">Upload both photos first — the difference preview shows up here.</div>
+        <div id="roiPlaceholder" class="roi-placeholder">Upload both photos first, the difference preview shows up here.</div>
         <canvas id="roiCanvas"></canvas>
         <div id="roiBgStatus" class="line-hint"></div>
-        <div id="roiInfo" class="roi-info">No box drawn — the whole image is used.</div>
+        <div id="roiInfo" class="roi-info">No box drawn. The whole image is used.</div>
 
         <!-- Compare regions: multiple boxes analyzed together for per-region stats + SNR -->
         <div class="mroi-section">
           <div class="mroi-head">
-            <div class="settings-subhead">Compare Regions (Signal vs Background) <span class="tag">— get a signal-to-noise table</span></div>
+            <div class="settings-subhead">Compare Regions (Signal vs Background) <span class="tag">(get a signal-to-noise table)</span></div>
             <button type="button" id="addRoiBtn" class="btn-secondary mroi-add" disabled>+ Add this box to compare</button>
           </div>
-          <div class="card-desc" style="margin-bottom: 1rem;">Draw boxes above and add them here. Mark one as <strong>Background</strong> (no flow) and the others as <strong>Signal</strong> (the jet) — the signal-to-noise table below updates automatically as you edit. Pressing Analyze saves it to the log.</div>
+          <div class="card-desc" style="margin-bottom: 1rem;">Draw boxes above and add them here. Mark one as <strong>Background</strong> (no flow) and the others as <strong>Signal</strong> (the jet); the signal-to-noise table below updates automatically as you edit. Pressing Analyze saves it to the log.</div>
           <div id="mroiList" class="mroi-list"></div>
           <div id="mroiStatus" class="mroi-empty" style="display:none;"></div>
           <div id="mroiResultWrap" style="display:none; margin-top:1.1rem;">
@@ -553,11 +562,11 @@
           <button id="clearLineBtn" class="btn-secondary" style="display:none;">✕ Clear Line</button>
         </div>
 
-        <div id="linePlaceholder" class="roi-placeholder">Upload both photos first — the difference preview shows up here.</div>
+        <div id="linePlaceholder" class="roi-placeholder">Upload both photos first, the difference preview shows up here.</div>
         <canvas id="lineCanvas"></canvas>
         <div id="lineBgStatus" class="line-hint"></div>
-        <div id="lineInfo" class="roi-info">No line drawn — drag across the jet at any angle.</div>
-        <div class="line-hint">The preview is brightened so you can see the jet — it doesn't change any numbers.</div>
+        <div id="lineInfo" class="roi-info">No line drawn. Drag across the jet at any angle.</div>
+        <div class="line-hint">The preview is brightened so you can see the jet. It doesn't change any numbers.</div>
 
         <div class="line-opts">
           <label class="toggle-row">
@@ -576,7 +585,7 @@
             <span class="hint" id="lineProfileHint">difference along the drawn line</span>
           </div>
           <div id="lineChartWrap"><canvas id="lineChart" width="1000" height="360"></canvas></div>
-          <div class="line-hint">Peak marks the strongest point along the line — check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout). Two bumps with a dip between them = the jet's two edges.</div>
+          <div class="line-hint">Peak marks the strongest point along the line, check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout). Two bumps with a dip between them = the jet's two edges.</div>
         </div>
       </div>
 
@@ -594,15 +603,6 @@
           <div class="form-group"><label>Flow Rate (L/min)</label><input type="number" id="flowRate" class="form-control" step="0.1" value="0.0" /></div>
           <div class="form-group"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
           <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" placeholder="5kV / 2kHz" /></div>
-        </div>
-        <div class="form-group">
-          <label for="isControlToggle">Control Run</label>
-          <label class="toggle-row">
-            <input type="checkbox" id="isControlToggle" />
-            <span class="toggle-track"></span>
-            <span id="isControlState" class="slider-val">Off</span>
-          </label>
-          <div class="input-desc">Control run (flow OFF vs OFF) — both photos taken with nothing flowing, to measure the setup's noise floor. Logged with the run.</div>
         </div>
       </div>
 
@@ -623,7 +623,6 @@
         </div>
         <div class="grid-4" style="margin-bottom: 1.1rem;">
           <div class="form-group"><label>Aperture</label><input type="text" id="aperture" class="form-control" /></div>
-          <div class="form-group"><label>Cam-BG Dist (cm)</label><input type="number" id="camDist" class="form-control" /></div>
           <div class="form-group"><label>Nozzle-BG Dist (cm)</label><input type="number" id="nozDist" class="form-control" /></div>
           <div class="form-group"><label>Lighting Condition</label><input type="text" id="lighting" class="form-control" /></div>
         </div>
@@ -631,7 +630,7 @@
       </div>
 
       <div class="action-bar">
-        <div class="input-desc" style="text-align:center;">Runs the difference and saves everything drawn — main stats, compare regions, and line profile — to the CSV logs under one run ID.</div>
+        <div class="input-desc" style="text-align:center;">Runs the difference and saves everything drawn (main stats, compare regions, and line profile) to the CSV logs under one run ID.</div>
         <button id="analyzeBtn" disabled>Analyze</button>
         <div id="status">Upload both photos to continue.</div>
       </div>
@@ -661,7 +660,7 @@
     </div>
 
     <div class="input-desc" id="statsNote">
-      Peak, mean, and coverage are brightness differences (0&ndash;255), not physical units — lighting, camera shake, and noise all mix in. Use them to compare runs on the same setup only. Shoot a flow-off vs flow-off control pair first to know your noise floor.
+      Peak, mean, and coverage are brightness differences (0&ndash;255), not physical units. Lighting, camera shake, and noise all mix in. Use them to compare runs on the same setup only. Shoot a flow-off vs flow-off control pair first to know your noise floor.
     </div>
 
     <div class="rv-panel">
@@ -736,7 +735,7 @@
         <h3>Line Profile <span class="hint" id="lineResultHint"></span></h3>
       </div>
       <div id="lineChartResultWrap"><canvas id="lineChartResult" width="1000" height="360"></canvas></div>
-      <div class="line-hint">Peak marks the strongest point along the line — check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout).</div>
+      <div class="line-hint">Peak marks the strongest point along the line, check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout).</div>
     </div>
 
     <div class="rv-panel">
@@ -828,8 +827,8 @@
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
     document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
     document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
-    document.getElementById('isControlToggle').onchange = (e) => document.getElementById('isControlState').textContent = e.target.checked ? 'On' : 'Off';
     document.getElementById('alignToggle').onchange = (e) => document.getElementById('alignState').textContent = e.target.checked ? 'On' : 'Off';
+    document.getElementById('denoiseToggle').onchange = (e) => document.getElementById('denoiseState').textContent = e.target.checked ? 'On' : 'Off';
 
     // Coalesce rapid edits (drag-adjust, renames, role toggles) into one request.
     function debounce(fn, ms) {
@@ -986,7 +985,7 @@
         clearBtn.style.display = '';
         roiCanvas.classList.add('has-roi');
       } else {
-        infoEl.textContent = 'No box drawn — the whole image is used.';
+        infoEl.textContent = 'No box drawn. The whole image is used.';
         infoEl.style.color = 'var(--muted)';
         clearBtn.style.display = 'none';
         roiCanvas.classList.remove('has-roi');
@@ -1197,7 +1196,7 @@
         el.style.color = 'var(--text)';
         clearBtn.style.display = '';
       } else {
-        el.textContent = 'No line drawn — drag across the jet at any angle.';
+        el.textContent = 'No line drawn. Drag across the jet at any angle.';
         el.style.color = 'var(--muted)';
         clearBtn.style.display = 'none';
       }
@@ -1503,7 +1502,7 @@
       // A new image changes the diff — refresh whatever is drawn, live.
       scheduleRoiComparison();
       if (lineNorm) scheduleLineProfile();
-      if (!analyzeBtn.disabled) statusEl.textContent = "Ready — press Analyze when you're set.";
+      if (!analyzeBtn.disabled) statusEl.textContent = "Ready. Press Analyze when you're set.";
     }
 
     setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
@@ -1583,6 +1582,7 @@
         x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
       }))));
       fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
+      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
 
       const res = await fetch('/analyze_rois', { method: 'POST', body: fd });
       if (!res.ok) {
@@ -1633,7 +1633,7 @@
       }
       if (!(refInput.files.length && testInput.files.length)) {
         wrap.style.display = 'none';
-        status.textContent = 'Upload both Reference and Test first — the table then updates automatically.';
+        status.textContent = 'Upload both Reference and Test first. The table then updates automatically.';
         status.style.display = '';
         return;
       }
@@ -1690,6 +1690,7 @@
         fd.append('roi_h', roiNorm.h.toFixed(6));
       }
       fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
+      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
 
       const res = await fetch('/suggest_params', { method: 'POST', body: fd });
       if (!res.ok) {
@@ -1729,6 +1730,7 @@
       fd.append('threshold', document.getElementById('threshSlider').value);
       fd.append('noise_floor', document.getElementById('floorSlider').value);
       fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
+      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
 
       if (roiNorm) {
         fd.append('roi_x', roiNorm.x.toFixed(6));
@@ -1752,9 +1754,6 @@
           denoise: document.getElementById('lineDenoiseToggle').checked,
         }));
       }
-      const isControl = document.getElementById('isControlToggle').checked ? 'ON' : 'OFF';
-      fd.append('is_control', isControl);
-
       const logFields = {
         gas_type: document.getElementById('gasType').value,
         flow_rate: document.getElementById('flowRate').value,
@@ -1765,7 +1764,6 @@
         Iso: document.getElementById('iso').value,
         Shutter: document.getElementById('shutter').value,
         Aperture: document.getElementById('aperture').value,
-        CamDist: document.getElementById('camDist').value,
         NozDist: document.getElementById('nozDist').value,
         Light: document.getElementById('lighting').value,
         Notes: document.getElementById('notes').value
@@ -1776,7 +1774,8 @@
         gain: document.getElementById('gainSlider').value,
         floor: document.getElementById('floorSlider').value,
         thresh: document.getElementById('threshSlider').value,
-        align: document.getElementById('alignToggle').checked ? 'ON' : 'OFF'
+        align: document.getElementById('alignToggle').checked ? 'ON' : 'OFF',
+        denoise: document.getElementById('denoiseToggle').checked ? 'ON' : 'OFF'
       };
 
       Object.entries(logFields).forEach(([key, val]) => fd.append(key, val));
@@ -1797,7 +1796,6 @@
           alignShift: data.align_shift,  // {dx, dy} if align was on, else null
           rois: data.rois,       // /analyze_rois-shaped result, or null
           line: data.line,       // line profile + echoed x0..y1/denoise, or null
-          isControl: isControl,
           log: logFields,
           display: displayFields,
           refName: refInput.files[0].name,
@@ -1831,7 +1829,7 @@
         if (roiNorm) {
           const wp = (roiNorm.w * 100).toFixed(1);
           const hp = (roiNorm.h * 100).toFixed(1);
-          roiBar.textContent = `Quick ROI active: ${wp}% × ${hp}% of the image — the stats come from inside that box only.`;
+          roiBar.textContent = `Quick ROI active: ${wp}% × ${hp}% of the image. The stats come from inside that box only.`;
           roiBar.style.display = 'block';
         } else {
           roiBar.style.display = 'none';
@@ -1894,7 +1892,6 @@
         ['Flow Rate (L/min)', d.log.flow_rate],
         ['Plasma Status', d.log.plasma_status],
         ['Plasma Condition', d.log.plasma_condition],
-        ['Control Run', d.isControl],
         ['group', 'Display'],
         ['Colormap', disp.cmap],
         ['Gain', disp.gain != null ? disp.gain + '×' : ''],
@@ -1902,13 +1899,13 @@
         ['Coverage Threshold', disp.thresh],
         ['Align Images', disp.align],
         ['Alignment Shift', d.alignShift ? `dx=${d.alignShift.dx}, dy=${d.alignShift.dy} px` : ''],
+        ['Denoise (median blur)', disp.denoise],
         ['group', 'Camera & Layout'],
         ['Camera Type', d.log.CamType],
         ['Focus', d.log.Focus],
         ['ISO', d.log.Iso],
         ['Shutter', d.log.Shutter],
         ['Aperture', d.log.Aperture],
-        ['Cam-BG Dist (cm)', d.log.CamDist],
         ['Nozzle-BG Dist (cm)', d.log.NozDist],
         ['Lighting', d.log.Light],
         ['Notes', d.log.Notes],
@@ -1962,13 +1959,13 @@
 
         zip.file("runs.csv", makeCsv(
           ["run_id", "datetime", "gas_type", "flow_rate", "plasma_status", "plasma_condition",
-           "is_control", "cam_type", "iso", "shutter", "aperture", "cam_dist", "nozzle_dist",
+           "is_control", "cam_type", "iso", "shutter", "aperture", "nozzle_dist",
            "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
-           "threshold", "align", "peak", "mean", "coverage"],
+           "threshold", "align", "peak", "mean", "coverage", "denoise"],
           [[runId, cad.datetime, l.gas_type, l.flow_rate, l.plasma_status, l.plasma_condition,
-            cad.isControl, l.CamType, l.Iso, l.Shutter, l.Aperture, l.CamDist, l.NozDist,
+            'OFF', l.CamType, l.Iso, l.Shutter, l.Aperture, l.NozDist,
             l.Light, l.Notes, cad.refName, cad.testName, d.cmap, d.gain, d.floor,
-            d.thresh, d.align, s.peak, s.mean, s.coverage]]
+            d.thresh, d.align, s.peak, s.mean, s.coverage, d.denoise]]
         ));
 
         zip.file("roi_regions.csv", makeCsv(

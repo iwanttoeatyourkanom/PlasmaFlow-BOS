@@ -29,9 +29,9 @@ DISPLAY_FULL_SCALE = 64
 RUNS_FILE = "runs.csv"
 RUNS_HEADER = [
     "run_id", "datetime", "gas_type", "flow_rate", "plasma_status", "plasma_condition",
-    "is_control", "cam_type", "iso", "shutter", "aperture", "cam_dist", "nozzle_dist",
+    "is_control", "cam_type", "iso", "shutter", "aperture", "nozzle_dist",
     "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
-    "threshold", "align", "peak", "mean", "coverage",
+    "threshold", "align", "peak", "mean", "coverage", "denoise",
 ]
 ROI_REGIONS_FILE = "roi_regions.csv"
 ROI_REGIONS_HEADER = [
@@ -92,7 +92,8 @@ def _estimate_shift(ref_gray: np.ndarray, test_gray: np.ndarray) -> dict:
     return {"dx": round(dx_med, 3), "dy": round(dy_med, 3), "corners": per_corner}
 
 
-def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, align: bool = False):
+def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, align: bool = False,
+                  denoise: bool = False):
     """Decode ref/test images and return (diff, shift_info) as their grayscale absolute difference.
 
     Shared by run_bos, /suggest_params, /analyze_rois, /line_profile, /diff_preview. roi_norm,
@@ -100,6 +101,12 @@ def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, al
     True, a whole-frame translation (measured from the four corners only, see _estimate_shift)
     is applied to test before diffing, and shift_info is the returned dict; otherwise shift_info
     is None and behavior is bit-identical to before this option existed.
+
+    If denoise is True, a median blur (MEDIAN_KSIZE) is applied to the diff itself before it's
+    returned -- like align, this is a real preprocessing step (it changes peak/mean/coverage,
+    not just the rendered image), distinct from the display-only noise_floor slider. Skipped on
+    crops smaller than the kernel (e.g. a tiny ROI) rather than raising. This is separate from
+    /line_profile's own per-line denoise toggle, which blurs its own full-image diff independently.
     """
     ref = cv2.imdecode(np.frombuffer(ref_bytes, np.uint8), cv2.IMREAD_COLOR)
     test = cv2.imdecode(np.frombuffer(test_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -135,7 +142,10 @@ def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, al
         ref_gray = ref_gray[ry:ry + rh, rx:rx + rw]
         test_gray = test_gray[ry:ry + rh, rx:rx + rw]
 
-    return cv2.absdiff(ref_gray, test_gray), shift_info
+    diff = cv2.absdiff(ref_gray, test_gray)
+    if denoise and diff.shape[0] >= MEDIAN_KSIZE and diff.shape[1] >= MEDIAN_KSIZE:
+        diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
+    return diff, shift_info
 
 
 def run_bos(
@@ -147,12 +157,14 @@ def run_bos(
     noise_floor: int = 0,
     roi_norm: tuple = None,
     align: bool = False,
+    denoise: bool = False,
 ) -> dict:
     """Compute the BOS diff and return rendered images plus stats.
 
-    Stats always come from the raw diff, never the display-adjusted render (colormap/gain/noise_floor).
+    Stats always come from the raw diff (after align/denoise preprocessing, if enabled), never
+    the display-adjusted render (colormap/gain/noise_floor).
     """
-    diff, shift_info = compute_diff(ref_bytes, test_bytes, roi_norm, align=align)
+    diff, shift_info = compute_diff(ref_bytes, test_bytes, roi_norm, align=align, denoise=denoise)
 
     # peak = 99th percentile, a robust max that ignores lone noise pixels.
     peak = int(round(float(np.percentile(diff, 99))))
@@ -173,6 +185,7 @@ def run_bos(
     diff_color = cv2.applyColorMap(diff_vis, cmap)
 
     align_text = f"Align: {'ON' if align else 'OFF'}"
+    denoise_text = f"Denoise: {'ON' if denoise else 'OFF'}"
     roi_text = ""
     if roi_norm is not None:
         _, _, nw, nh = roi_norm
@@ -180,7 +193,7 @@ def run_bos(
     # Settings on their own line, computed result values on the line below.
     footer = [
         f"Cmap: {colormap.upper()} | Gain: {gain}x | NoiseFloor: {noise_floor} | "
-        f"Thresh: {threshold} | {align_text}{roi_text}",
+        f"Thresh: {threshold} | {align_text} | {denoise_text}{roi_text}",
         f"Peak: {peak} | Mean: {mean} | Cov: {coverage}%",
     ]
 
@@ -189,11 +202,19 @@ def run_bos(
     _, gray_buf = cv2.imencode(".png", final_gray)
     _, color_buf = cv2.imencode(".png", final_color)
 
-    # Raw view: same scale, but no noise-floor/gain applied.
-    raw_vis = np.clip(diff.astype(np.float32) * scale, 0, 255).astype(np.uint8)
+    # Raw view: the genuinely untouched difference -- no align, no denoise, no noise
+    # floor/gain -- regardless of what the align/denoise toggles above are set to. This
+    # is a fixed "before" reference so align/denoise's effect can actually be seen by
+    # comparing it against the main grayscale/color/thresholded views. Recomputed from
+    # scratch (same ROI crop) rather than reusing `diff`, since `diff` already has
+    # align/denoise baked in when those are on.
+    diff_raw, _ = compute_diff(ref_bytes, test_bytes, roi_norm, align=False, denoise=False)
+    raw_peak = int(round(float(np.percentile(diff_raw, 99))))
+    raw_mean = round(float(diff_raw.mean()), 2)
+    raw_vis = np.clip(diff_raw.astype(np.float32) * scale, 0, 255).astype(np.uint8)
     raw_footer = [
-        f"RAW - no noise floor | {align_text}",
-        f"Peak: {peak} | Mean: {mean}",
+        "RAW - no align, no denoise, no noise floor",
+        f"Peak: {raw_peak} | Mean: {raw_mean}",
     ]
     final_raw = _stamp_footer(raw_vis, raw_footer)
     _, raw_buf = cv2.imencode(".png", final_raw)
@@ -201,7 +222,7 @@ def run_bos(
     # Thresholded view: matches the same threshold coverage % is counted against.
     thresh_vis = np.where(diff > threshold, 255, 0).astype(np.uint8)
     thresh_footer = [
-        f"THRESHOLDED - threshold: {threshold} | {align_text}",
+        f"THRESHOLDED - threshold: {threshold} | {align_text} | {denoise_text}",
         f"Coverage: {coverage}%",
     ]
     final_thresh = _stamp_footer(thresh_vis, thresh_footer)
@@ -284,6 +305,7 @@ async def analyze(
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
     noise_floor: int = Form(0),
     align: bool = Form(False),
+    denoise: bool = Form(False),
     roi_x: float = Form(0.0),
     roi_y: float = Form(0.0),
     roi_w: float = Form(0.0),
@@ -300,7 +322,6 @@ async def analyze(
     Iso: str = Form(""),
     Shutter: str = Form(""),
     Aperture: str = Form(""),
-    CamDist: str = Form(""),
     NozDist: str = Form(""),
     Light: str = Form(""),
     Notes: str = Form(""),
@@ -315,7 +336,7 @@ async def analyze(
     try:
         result = run_bos(
             ref_bytes, test_bytes, colormap, gain=gain, threshold=threshold,
-            noise_floor=noise_floor, roi_norm=roi_norm, align=align,
+            noise_floor=noise_floor, roi_norm=roi_norm, align=align, denoise=denoise,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -324,7 +345,7 @@ async def analyze(
     roi_result = None
     line_result = None
     if rois or line:
-        diff_full, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
+        diff_full, _ = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
 
         if rois:
             try:
@@ -363,10 +384,11 @@ async def analyze(
 
     _append_csv(RUNS_FILE, RUNS_HEADER, [[
         run_id, timestamp, gas_type, flow_rate, plasma_status, plasma_condition,
-        is_control, CamType, Iso, Shutter, Aperture, CamDist, NozDist,
+        is_control, CamType, Iso, Shutter, Aperture, NozDist,
         Light, Notes, reference.filename, test.filename, colormap, gain, noise_floor,
         threshold, "ON" if align else "OFF",
         result["stats"]["peak"], result["stats"]["mean"], result["stats"]["coverage"],
+        "ON" if denoise else "OFF",
     ]])
 
     if roi_result:
@@ -400,6 +422,7 @@ async def suggest_params(
     roi_w: float = Form(0.0),
     roi_h: float = Form(0.0),
     align: bool = Form(False),
+    denoise: bool = Form(False),
 ):
     """Suggest noise_floor (95th pct) and threshold (99th pct) from the same diff as run_bos, assuming the region is mostly background."""
     ref_bytes = await reference.read()
@@ -409,7 +432,7 @@ async def suggest_params(
     roi_norm = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
 
     try:
-        diff, _ = compute_diff(ref_bytes, test_bytes, roi_norm, align=align)
+        diff, _ = compute_diff(ref_bytes, test_bytes, roi_norm, align=align, denoise=denoise)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -482,6 +505,7 @@ async def analyze_rois(
     rois: str = Form(...),
     threshold: int = Form(DEFAULT_COVERAGE_THRESHOLD),
     align: bool = Form(False),
+    denoise: bool = Form(False),
 ):
     """Analyze named ROIs (`rois` = JSON list of {name, x, y, w, h, role}) against one shared diff. Display-only, no logging."""
     ref_bytes = await reference.read()
@@ -496,7 +520,7 @@ async def analyze_rois(
 
     # Full-image diff once; each ROI is just a crop of it.
     try:
-        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
+        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
         return analyze_roi_list(diff, roi_list, threshold)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

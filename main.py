@@ -158,21 +158,35 @@ def run_bos(
     roi_norm: tuple = None,
     align: bool = False,
     denoise: bool = False,
+    control_peak: float = None,
+    control_mean: float = None,
 ) -> dict:
     """Compute the BOS diff and return rendered images plus stats.
 
     Stats always come from the raw diff (after align/denoise preprocessing, if enabled), never
     the display-adjusted render (colormap/gain/noise_floor).
+
+    roi_norm no longer crops any pixels out of the rendered images -- every run's grayscale/
+    color/raw/thresholded output is always the full frame, so jet position and framing stay
+    comparable across runs (needed to check repeatability). roi_norm still scopes what the
+    peak/mean/coverage stats are computed from: if given, they're computed from just that
+    region of the diff via _crop_diff, same numbers as before, just no longer tied to what
+    the image shows.
     """
-    diff, shift_info = compute_diff(ref_bytes, test_bytes, roi_norm, align=align, denoise=denoise)
+    diff_full, shift_info = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
+    img_h, img_w = diff_full.shape  # pre-footer size, in pixels -- the served PNGs are taller than
+    # this once _stamp_footer appends its footer band below, so the client needs this to convert
+    # normalized (0-1) ROI coordinates (which are fractions of THIS, not of the served PNG) back
+    # into pixels correctly, e.g. when cropping a region out of the returned image client-side.
+    stats_diff = _crop_diff(diff_full, roi_norm) if roi_norm is not None else diff_full
 
     # peak = 99th percentile, a robust max that ignores lone noise pixels.
-    peak = int(round(float(np.percentile(diff, 99))))
-    mean = round(float(diff.mean()), 2)
-    coverage = round(float(np.count_nonzero(diff > threshold)) / diff.size * 100.0, 2)
+    peak = int(round(float(np.percentile(stats_diff, 99))))
+    mean = round(float(stats_diff.mean()), 2)
+    coverage = round(float(np.count_nonzero(stats_diff > threshold)) / stats_diff.size * 100.0, 2)
 
-    # --- Display rendering (does not affect stats) ---
-    render_diff = diff
+    # --- Display rendering (full frame, does not affect stats) ---
+    render_diff = diff_full
 
     if noise_floor > 0:
         render_diff = render_diff.copy()
@@ -190,12 +204,20 @@ def run_bos(
     if roi_norm is not None:
         _, _, nw, nh = roi_norm
         roi_text = f" | ROI: {nw * 100:.0f}%x{nh * 100:.0f}%"
-    # Settings on their own line, computed result values on the line below.
+    # Settings on their own line, computed result values on the line below. Cov gets the
+    # threshold it was counted against in parentheses right next to it, so the number is
+    # self-explanatory without having to cross-reference the settings line above.
     footer = [
         f"Cmap: {colormap.upper()} | Gain: {gain}x | NoiseFloor: {noise_floor} | "
         f"Thresh: {threshold} | {align_text} | {denoise_text}{roi_text}",
-        f"Peak: {peak} | Mean: {mean} | Cov: {coverage}%",
+        f"Peak: {peak} | Mean: {mean} | Cov: {coverage}% (diff>{threshold})",
     ]
+    # If a bracketed noise baseline (Reference vs Reference 2) was computed for this run,
+    # burn its peak/mean into the image too -- not just the separate result table -- so
+    # the "is this above the noise floor" comparison travels with the image itself
+    # (ZIP, downloads, screenshots) instead of only living in the live UI.
+    if control_peak is not None and control_mean is not None:
+        footer.append(f"Noise Baseline (Ref vs Ref2): Peak: {control_peak} | Mean: {control_mean}")
 
     final_gray = _stamp_footer(diff_vis, footer)
     final_color = _stamp_footer(diff_color, footer)
@@ -206,12 +228,14 @@ def run_bos(
     # floor/gain -- regardless of what the align/denoise toggles above are set to. This
     # is a fixed "before" reference so align/denoise's effect can actually be seen by
     # comparing it against the main grayscale/color/thresholded views. Recomputed from
-    # scratch (same ROI crop) rather than reusing `diff`, since `diff` already has
-    # align/denoise baked in when those are on.
-    diff_raw, _ = compute_diff(ref_bytes, test_bytes, roi_norm, align=False, denoise=False)
-    raw_peak = int(round(float(np.percentile(diff_raw, 99))))
-    raw_mean = round(float(diff_raw.mean()), 2)
-    raw_vis = np.clip(diff_raw.astype(np.float32) * scale, 0, 255).astype(np.uint8)
+    # scratch (full frame, same as diff_full above) rather than reusing `diff_full`,
+    # since `diff_full` already has align/denoise baked in when those are on. Stats
+    # still scoped to roi_norm, same as the main stats above; the image itself is full.
+    diff_raw_full, _ = compute_diff(ref_bytes, test_bytes, None, align=False, denoise=False)
+    raw_stats_diff = _crop_diff(diff_raw_full, roi_norm) if roi_norm is not None else diff_raw_full
+    raw_peak = int(round(float(np.percentile(raw_stats_diff, 99))))
+    raw_mean = round(float(raw_stats_diff.mean()), 2)
+    raw_vis = np.clip(diff_raw_full.astype(np.float32) * scale, 0, 255).astype(np.uint8)
     raw_footer = [
         "RAW - no align, no denoise, no noise floor",
         f"Peak: {raw_peak} | Mean: {raw_mean}",
@@ -220,7 +244,7 @@ def run_bos(
     _, raw_buf = cv2.imencode(".png", final_raw)
 
     # Thresholded view: matches the same threshold coverage % is counted against.
-    thresh_vis = np.where(diff > threshold, 255, 0).astype(np.uint8)
+    thresh_vis = np.where(diff_full > threshold, 255, 0).astype(np.uint8)
     thresh_footer = [
         f"THRESHOLDED - threshold: {threshold} | {align_text} | {denoise_text}",
         f"Coverage: {coverage}%",
@@ -239,6 +263,8 @@ def run_bos(
             "coverage": coverage,
         },
         "align_shift": {"dx": shift_info["dx"], "dy": shift_info["dy"]} if shift_info else None,
+        "image_width": img_w,
+        "image_height": img_h,
     }
 
 
@@ -317,6 +343,8 @@ async def analyze(
     plasma_status: str = Form("OFF"),
     plasma_condition: str = Form(""),
     is_control: str = Form("OFF"),
+    control_peak: float = Form(None),
+    control_mean: float = Form(None),
     CamType: str = Form(""),
     Focus: str = Form(""),
     Iso: str = Form(""),
@@ -337,6 +365,7 @@ async def analyze(
         result = run_bos(
             ref_bytes, test_bytes, colormap, gain=gain, threshold=threshold,
             noise_floor=noise_floor, roi_norm=roi_norm, align=align, denoise=denoise,
+            control_peak=control_peak, control_mean=control_mean,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -363,18 +392,19 @@ async def analyze(
                 line_spec = json.loads(line)
                 lx0, ly0 = float(line_spec["x0"]), float(line_spec["y0"])
                 lx1, ly1 = float(line_spec["x1"]), float(line_spec["y1"])
-                line_denoise = bool(line_spec.get("denoise", False))
             except (ValueError, TypeError, KeyError):
-                raise HTTPException(status_code=400, detail="line must be JSON {x0,y0,x1,y1,denoise}.")
+                raise HTTPException(status_code=400, detail="line must be JSON {x0,y0,x1,y1}.")
             try:
-                line_result = sample_line_profile(diff_full, lx0, ly0, lx1, ly1, denoise=line_denoise)
+                line_result = sample_line_profile(diff_full, lx0, ly0, lx1, ly1)
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
-            # Echo inputs so the results view carries the values logged below.
+            # Echo inputs, plus the run's denoise setting (line sampling no longer has
+            # its own separate toggle -- it just samples diff_full, which already went
+            # through compute_diff with this run's denoise setting above).
             line_result.update({
                 "x0": round(lx0, 6), "y0": round(ly0, 6),
                 "x1": round(lx1, 6), "y1": round(ly1, 6),
-                "denoise": line_denoise,
+                "denoise": denoise,
             })
 
     # --- Commit this run to the three linked CSVs (one shared run_id) ---
@@ -428,11 +458,15 @@ async def suggest_params(
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
-    # A zero-size ROI means "no selection" — analyze the full image.
+    # A zero-size ROI means "no selection" — analyze the full image. Same as run_bos,
+    # this only scopes which pixels the suggested values are computed from -- there's
+    # no image to crop here anyway, just numbers.
     roi_norm = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
 
     try:
-        diff, _ = compute_diff(ref_bytes, test_bytes, roi_norm, align=align, denoise=denoise)
+        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
+        if roi_norm is not None:
+            diff = _crop_diff(diff, roi_norm)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -527,8 +561,15 @@ async def analyze_rois(
 
 
 def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
-                        samples: int = 200, denoise: bool = False) -> dict:
+                        samples: int = 200) -> dict:
     """Sample a diff along a straight line; shared by /line_profile and /analyze.
+
+    Takes whatever diff it's given as-is (denoise, if wanted, should already be baked
+    in via compute_diff -- this used to also take its own separate denoise flag and
+    median-blur again here, which double-blurred when the run's main denoise was also
+    on; removed in favor of one denoise setting per run). The 15-sample moving average
+    below is a separate, always-on smoothing of the *sampled curve* for a readable
+    peak/width, not of the 2D image.
 
     width_px is FWHM-style: span around the peak where the smoothed value stays above baseline + (peak - baseline)/2 (baseline = 10th pct). Raises ValueError on a zero-length line.
     """
@@ -536,9 +577,6 @@ def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
     if cx0 == cx1 and cy0 == cy1:
         raise ValueError("Line has zero length; drag to draw a line.")
     samples = max(2, samples)
-
-    if denoise:
-        diff = cv2.medianBlur(diff, MEDIAN_KSIZE)
 
     H, W = diff.shape
     px0, px1 = cx0 * (W - 1), cx1 * (W - 1)
@@ -597,13 +635,18 @@ async def line_profile(
     denoise: bool = Form(False),
     align: bool = Form(False),
 ):
-    """Sample the BOS diff along a straight line (full image, no ROI). Display-only, no logging."""
+    """Sample the BOS diff along a straight line (full image, no ROI). Display-only, no logging.
+
+    `denoise` here is the same run-wide setting as everywhere else (see compute_diff) -- this
+    endpoint used to take a separate line-only denoise flag applied inside sample_line_profile;
+    that's gone, so the live preview now matches whatever Analyze will actually compute.
+    """
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
     try:
-        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align)
-        return sample_line_profile(diff, x0, y0, x1, y1, samples=samples, denoise=denoise)
+        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
+        return sample_line_profile(diff, x0, y0, x1, y1, samples=samples)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

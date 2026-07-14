@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BOS Gas-Flow Visualization</title>
+  <title>PlasmaFlow-BOS</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -108,7 +108,6 @@
       font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.04em;
       text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 0.45rem;
     }
-    .drop-zone > label::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--muted); }
     .drop-zone input[type="file"] { display: none; }
     .preview-box {
       width: 100%; height: 200px; background: var(--inset);
@@ -153,6 +152,13 @@
     .toggle-row input:checked + .toggle-track { background: var(--card-2); border-color: var(--border-hover); }
     .toggle-row input:checked + .toggle-track::after { transform: translateX(18px); background: var(--text); }
     .slider-val { font-weight: 600; color: var(--text); font-size: 0.82rem; font-family: var(--mono); }
+    input.slider-val-input { background: var(--inset); border: 1px solid var(--border); border-radius: 4px;
+      width: 3.4em; text-align: right; padding: 0.15em 0.4em; }
+    input.slider-val-input:focus { outline: none; border-color: var(--border-hover); }
+    input.slider-val-input:disabled { opacity: 0.6; cursor: not-allowed; }
+    /* Hide the native up/down spinner so it matches the plain slider-val look. */
+    input.slider-val-input::-webkit-outer-spin-button, input.slider-val-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input.slider-val-input[type="number"] { -moz-appearance: textfield; }
 
     /* ===== Sliders ===== */
     .slider-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.55rem; }
@@ -212,10 +218,9 @@
     .roi-table .role-tag.signal { color: #7cc4ff; }
     .roi-table .role-tag.background { color: #e0a05a; }
     .roi-note { font-size: 0.74rem; color: var(--muted); font-family: var(--mono); line-height: 1.5; margin-top: 0.95rem; }
+    .roi-overlay-img { display: block; max-width: 480px; max-height: 400px; width: auto; height: auto; object-fit: contain; margin: 0 auto 1.1rem; border-radius: var(--radius-md); border: 1px solid var(--border); }
 
     /* ===== Line Profile controls (its own card, separate from ROI) ===== */
-    .line-opts { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.1rem; }
-    .line-opt-label { font-size: 0.76rem; color: var(--muted); font-family: var(--mono); }
     #lineChartWrap, #lineChartResultWrap { width: 100%; overflow-x: auto; }
     #lineChart, #lineChartResult { width: 100%; max-width: 100%; height: auto; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); display: block; }
     .line-hint { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); margin-top: 0.9rem; line-height: 1.5; }
@@ -289,7 +294,12 @@
     .image-box { background: var(--inset);
       border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.85rem; cursor: zoom-in; transition: border-color .18s; }
     .image-box:hover { border-color: var(--border-hover); }
-    .image-box img { max-width: 100%; max-height: 60vh; border-radius: 5px; object-fit: contain; }
+    .image-box img { max-width: 100%; max-height: 60vh; border-radius: 5px; object-fit: contain; display: block; }
+    .img-wrap { position: relative; max-width: 100%; }
+    .roi-box-layer { position: absolute; left: 0; top: 0; pointer-events: none; display: none; }
+    .roi-box-layer.visible { display: block; }
+    .roi-box-item { position: absolute; border: 2px solid; box-sizing: border-box; }
+    .roi-box-item .roi-box-label { position: absolute; top: -1.35em; left: -2px; font-family: var(--mono); font-size: 0.68rem; font-weight: 600; padding: 0.1em 0.4em; white-space: nowrap; color: #0b0c0d; }
     .image-title { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--mono); align-self: flex-start; }
     .image-title-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
     .image-title-row .btn-secondary { padding: 0.32rem 0.7rem; font-size: 0.68rem; }
@@ -396,8 +406,8 @@
     <div class="app-header">
       <div class="brand">
         <div>
-          <h1>BOS Gas-Flow Visualization</h1>
-          <div class="sub">by keng</div>
+          <h1>PlasmaFlow-BOS</h1>
+          <div class="sub">BOS Visualization of Gas-Jet and Plasma Actuator-Induced Flow · by keng</div>
         </div>
       </div>
     </div>
@@ -420,16 +430,31 @@
 
         <div class="grid-2">
           <div class="drop-zone" id="refZone">
-            <label>Reference · Actuator OFF</label>
+            <label>Reference</label>
             <div class="preview-box" id="refPreviewBox"><span class="placeholder">Click or drag image</span></div>
             <div class="file-name" id="refFileName">No file chosen</div>
             <input type="file" id="refInput" accept="image/*" />
           </div>
           <div class="drop-zone" id="testZone">
-            <label>Test · Actuator ON</label>
+            <label>Test</label>
             <div class="preview-box" id="testPreviewBox"><span class="placeholder">Click or drag image</span></div>
             <div class="file-name" id="testFileName">No file chosen</div>
             <input type="file" id="testInput" accept="image/*" />
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 1.3rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+            <label style="margin: 0;">Noise Baseline <span class="opt">(Optional)</span></label>
+            <button type="button" id="toggleCtrlBtn" class="btn-secondary">Show</button>
+          </div>
+          <div class="input-desc">One more photo, flow OFF, taken right after Test so Test is bracketed between two off shots. Analyze diffs Reference against this to get a noise baseline from the same time window as your real shot.</div>
+          <div id="ctrlZonesWrap" style="margin-top: 0.65rem; display: none;">
+            <div class="drop-zone" id="ctrlRef2Zone" style="max-width: calc(50% - 0.625rem);">
+              <label>Reference 2</label>
+              <div class="preview-box" id="ctrlRef2PreviewBox"><span class="placeholder">Click or drag image</span></div>
+              <div class="file-name" id="ctrlRef2FileName">No file chosen</div>
+              <input type="file" id="ctrlRef2Input" accept="image/*" />
+            </div>
           </div>
         </div>
       </div>
@@ -462,8 +487,8 @@
               <div class="input-desc">Brightens the image so faint flow is easier to see. Looks only.</div>
             </div>
             <div class="form-group">
-              <div class="slider-header"><label>Noise floor</label><span id="floorVal" class="slider-val">8</span></div>
-              <input type="range" id="floorSlider" min="0" max="60" step="1" value="8" />
+              <div class="slider-header"><label>Noise floor</label><input type="number" id="floorVal" class="slider-val slider-val-input" min="0" max="60" step="1" value="0" /></div>
+              <input type="range" id="floorSlider" min="0" max="60" step="1" value="0" />
               <button id="autoFloorBtn" class="btn-secondary btn-auto">Auto</button>
               <div class="input-desc">Hides pixels below this level so weak background noise goes black. Auto locks the slider and picks a value just above the noise when you press Analyze; click Auto again to set it yourself.</div>
             </div>
@@ -475,8 +500,8 @@
           <div class="settings-subhead">Measurement <span class="tag">(changes the saved numbers)</span></div>
           <div class="grid-2">
             <div class="form-group">
-              <div class="slider-header"><label>Coverage Threshold</label><span id="threshVal" class="slider-val">12</span></div>
-              <input type="range" id="threshSlider" min="5" max="80" step="1" value="12" />
+              <div class="slider-header"><label>Coverage Threshold</label><input type="number" id="threshVal" class="slider-val slider-val-input" min="1" max="80" step="1" value="1" /></div>
+              <input type="range" id="threshSlider" min="1" max="80" step="1" value="1" />
               <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
               <div class="input-desc">How strong a pixel must be to count as "flow". Higher = stricter. Affects both Coverage % and the region comparison table. Auto picks a value when you press Analyze (works best when the area is mostly background; a tight box around the jet may read too high); click Auto again to set it yourself.</div>
             </div>
@@ -492,9 +517,9 @@
             <div class="form-group">
               <label for="denoiseToggle">Denoise</label>
               <label class="toggle-row">
-                <input type="checkbox" id="denoiseToggle" />
+                <input type="checkbox" id="denoiseToggle" checked />
                 <span class="toggle-track"></span>
-                <span id="denoiseState" class="slider-val">Off</span>
+                <span id="denoiseState" class="slider-val">On</span>
               </label>
               <div class="input-desc">Applies a median blur (5x5) to the difference image before computing Peak/Mean/Coverage, to knock down per-pixel sensor/speckle noise. This is separate from Noise Floor below: that only clips the display, this actually smooths the measured signal.</div>
             </div>
@@ -532,6 +557,7 @@
           <div class="mroi-head">
             <div class="settings-subhead">Compare Regions (Signal vs Background) <span class="tag">(get a signal-to-noise table)</span></div>
             <button type="button" id="addRoiBtn" class="btn-secondary mroi-add" disabled>+ Add this box to compare</button>
+            <button type="button" id="clearAllRoiBtn" class="btn-secondary mroi-add" style="display:none;">Clear all regions</button>
           </div>
           <div class="card-desc" style="margin-bottom: 1rem;">Draw boxes above and add them here. Mark one as <strong>Background</strong> (no flow) and the others as <strong>Signal</strong> (the jet); the signal-to-noise table below updates automatically as you edit. Pressing Analyze saves it to the log.</div>
           <div id="mroiList" class="mroi-list"></div>
@@ -566,16 +592,6 @@
         <canvas id="lineCanvas"></canvas>
         <div id="lineBgStatus" class="line-hint"></div>
         <div id="lineInfo" class="roi-info">No line drawn. Drag across the jet at any angle.</div>
-        <div class="line-hint">The preview is brightened so you can see the jet. It doesn't change any numbers.</div>
-
-        <div class="line-opts">
-          <label class="toggle-row">
-            <input type="checkbox" id="lineDenoiseToggle" />
-            <span class="toggle-track"></span>
-            <span id="lineDenoiseState" class="slider-val">Off</span>
-          </label>
-          <span class="line-opt-label">smooth out speckle before sampling (median filter)</span>
-        </div>
 
         <!-- Chart shown inline right under the controls (no full-screen takeover)
              so the line and its profile stay visible together while re-plotting. -->
@@ -602,16 +618,7 @@
           <div class="form-group"><label>Gas Type</label><input type="text" id="gasType" class="form-control" placeholder="Ar, He, None" /></div>
           <div class="form-group"><label>Flow Rate (L/min)</label><input type="number" id="flowRate" class="form-control" step="0.1" value="0.0" /></div>
           <div class="form-group"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
-          <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" placeholder="5kV / 2kHz" /></div>
-        </div>
-        <div class="form-group">
-          <label for="isControlToggle">Control Run</label>
-          <label class="toggle-row">
-            <input type="checkbox" id="isControlToggle" />
-            <span class="toggle-track"></span>
-            <span id="isControlState" class="slider-val">Off</span>
-          </label>
-          <div class="input-desc">Control run (flow OFF vs OFF) — both photos taken with nothing flowing, to measure the setup's noise floor. Logged with the run.</div>
+          <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" /></div>
         </div>
       </div>
 
@@ -675,10 +682,13 @@
     <div class="rv-panel">
       <div class="rv-panel-head">
         <h3>Visualized Images <span class="hint">click image to expand</span></h3>
-        <button id="dlZipBtn" class="dl-zip-btn">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Download ZIP
-        </button>
+        <div style="display:flex; gap:0.6rem;">
+          <button id="toggleRoiBoxBtn" class="btn-secondary" type="button" style="display:none;">Show ROI Box</button>
+          <button id="dlZipBtn" class="dl-zip-btn">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download ZIP
+          </button>
+        </div>
       </div>
 
       <div id="roiActiveBar" class="roi-active-bar"></div>
@@ -689,20 +699,27 @@
             <div class="image-title">Grayscale Difference</div>
             <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('grayImg', 'grayscale_diff.png')">Download</button>
           </div>
-          <img id="grayImg" alt="Grayscale diff" />
+          <div class="img-wrap">
+            <img id="grayImg" alt="Grayscale diff" />
+            <div class="roi-box-layer" id="grayRoiLayer"></div>
+          </div>
         </div>
         <div class="image-box" onclick="openFullscreen('colorImg')">
           <div class="image-title-row">
             <div class="image-title">Pseudo-color · <span id="colorCmapName">JET</span></div>
             <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('colorImg', 'pseudocolor_diff.png')">Download</button>
           </div>
-          <img id="colorImg" alt="Color diff" />
+          <div class="img-wrap">
+            <img id="colorImg" alt="Color diff" />
+            <div class="roi-box-layer" id="colorRoiLayer"></div>
+          </div>
         </div>
       </div>
 
       <div class="extra-views-toggle">
         <button id="showRawBtn" class="btn-secondary" type="button">Show Raw</button>
         <button id="showThreshBtn" class="btn-secondary" type="button">Show Thresholded</button>
+        <button id="showSignalRoiBtn" class="btn-secondary" type="button" style="display:none;">Zoom to Signal ROI</button>
       </div>
 
       <div class="image-frame" style="margin-top:1.25rem;">
@@ -721,12 +738,24 @@
           <img id="threshImg" alt="Thresholded diff" />
         </div>
       </div>
+
+      <div class="image-frame" style="margin-top:1.25rem;">
+        <div class="image-box" id="signalRoiBox" style="display:none;" onclick="openFullscreen('signalRoiImg')">
+          <div class="image-title-row">
+            <div class="image-title">Signal ROI · Zoomed, full resolution <span class="hint" id="signalRoiHint"></span></div>
+            <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('signalRoiImg', 'signal_roi_crop.png')">Download</button>
+          </div>
+          <img id="signalRoiImg" alt="Signal ROI crop" />
+        </div>
+      </div>
     </div>
 
     <div class="rv-panel" id="roiResultPanel" style="display:none;">
       <div class="rv-panel-head">
         <h3>Region Comparison <span class="hint">signal vs background</span></h3>
+        <button id="dlRoiSummaryBtn" class="btn-secondary" type="button">Download ROI Summary</button>
       </div>
+      <img id="roiOverlayImg" class="roi-overlay-img" alt="ROI regions overlay" />
       <table class="roi-table">
         <thead>
           <tr>
@@ -834,9 +863,36 @@
     let currentAnalysisData = {};
 
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
-    document.getElementById('threshSlider').oninput = (e) => document.getElementById('threshVal').textContent = e.target.value;
-    document.getElementById('floorSlider').oninput = (e) => document.getElementById('floorVal').textContent = e.target.value;
-    document.getElementById('isControlToggle').onchange = (e) => document.getElementById('isControlState').textContent = e.target.checked ? 'On' : 'Off';
+    // Slider <-> number box, kept in sync both ways so a value can be dragged or typed.
+    // While typing, the raw value is mirrored straight to the slider (range inputs
+    // clamp their own displayed position automatically, so the slider still tracks
+    // live) without touching what's in the number box -- clamping/rounding that on
+    // every keystroke would fight normal typing (e.g. typing "80" one digit at a
+    // time). Full clamp + round only happens on blur, once typing is done.
+    function bindSliderNumber(sliderId, numberId) {
+      const slider = document.getElementById(sliderId);
+      const number = document.getElementById(numberId);
+      const min = +slider.min, max = +slider.max;
+      const clamp = (val) => {
+        let v = Math.round(+val);
+        if (Number.isNaN(v)) v = +slider.value;
+        return Math.min(max, Math.max(min, v));
+      };
+      slider.addEventListener('input', () => { number.value = slider.value; });
+      number.addEventListener('input', () => {
+        if (number.value === '') return; // allow momentarily clearing the field while typing
+        slider.value = number.value;
+        paintRange(slider);
+      });
+      number.addEventListener('blur', () => {
+        const v = clamp(number.value);
+        number.value = v;
+        slider.value = v;
+        paintRange(slider);
+      });
+    }
+    bindSliderNumber('threshSlider', 'threshVal');
+    bindSliderNumber('floorSlider', 'floorVal');
     document.getElementById('alignToggle').onchange = (e) => document.getElementById('alignState').textContent = e.target.checked ? 'On' : 'Off';
     document.getElementById('denoiseToggle').onchange = (e) => document.getElementById('denoiseState').textContent = e.target.checked ? 'On' : 'Off';
 
@@ -1222,10 +1278,6 @@
     }
     document.getElementById('clearLineBtn').onclick = e => { e.stopPropagation(); clearLine(); };
 
-    document.getElementById('lineDenoiseToggle').onchange = (e) => {
-      document.getElementById('lineDenoiseState').textContent = e.target.checked ? 'On' : 'Off';
-      if (lineNorm) scheduleLineProfile();
-    };
 
     // Fetch the contrast-stretched diff once, cache it, and draw it as the
     // drag background for both Line Profile and ROI Selection. Display-only:
@@ -1404,7 +1456,7 @@
       fd.append('x1', lineNorm.x1.toFixed(6));
       fd.append('y1', lineNorm.y1.toFixed(6));
       fd.append('samples', '200');
-      fd.append('denoise', document.getElementById('lineDenoiseToggle').checked ? 'true' : 'false');
+      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
       fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
 
       try {
@@ -1490,8 +1542,13 @@
 
       // A new ref/test invalidates the diff preview shared by Line Profile and
       // ROI Selection: rebuild it if both images are present, otherwise fall
-      // back to each card's placeholder.
+      // back to each card's placeholder. It also invalidates any named compare
+      // regions (Signal/Background boxes) left over from the previous pair --
+      // those are normalized coordinates with no idea the underlying image
+      // changed, so without this they'd silently keep applying (and showing up
+      // in results) against images they were never drawn on.
       if (inputEl === refInput || inputEl === testInput) {
+        clearAllMultiRois();
         if (refInput.files.length && testInput.files.length) {
           fetchDiffPreview();
         } else {
@@ -1518,14 +1575,402 @@
     setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
     setupZone('testZone', testInput, 'testPreviewBox', 'testFileName');
 
+    // Control Ref 1/2 are a separate, optional flow-OFF/flow-OFF pair (see Analyze
+    // handler). They don't drive the diff preview, ROI/line canvases, or the
+    // Analyze button's enabled state the way refInput/testInput do, so they get
+    // their own lightweight setup instead of reusing setFile/setupZone.
+    function setControlFile(inputEl, previewBoxId, fileNameId, file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      inputEl.files = dt.files;
+      document.getElementById(fileNameId).textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById(previewBoxId).innerHTML = `<img src="${e.target.result}" />`;
+      };
+      reader.readAsDataURL(file);
+    }
+    function setupControlZone(zoneId, inputEl, previewBoxId, fileNameId) {
+      const zone = document.getElementById(zoneId);
+      zone.onclick = () => inputEl.click();
+      zone.ondragover = e => { e.preventDefault(); zone.classList.add('over'); };
+      zone.ondragleave = () => zone.classList.remove('over');
+      zone.ondrop = e => {
+        e.preventDefault();
+        zone.classList.remove('over');
+        if (e.dataTransfer.files[0]) setControlFile(inputEl, previewBoxId, fileNameId, e.dataTransfer.files[0]);
+      };
+      inputEl.onchange = () => {
+        if (inputEl.files[0]) setControlFile(inputEl, previewBoxId, fileNameId, inputEl.files[0]);
+      };
+    }
+    const ctrlRef2Input = document.getElementById('ctrlRef2Input');
+    setupControlZone('ctrlRef2Zone', ctrlRef2Input, 'ctrlRef2PreviewBox', 'ctrlRef2FileName');
+
+    // Purely a visibility toggle. A file already chosen in the hidden zone stays
+    // selected and still gets uploaded on Analyze either way.
+    document.getElementById('toggleCtrlBtn').onclick = () => {
+      const wrap = document.getElementById('ctrlZonesWrap');
+      const btn = document.getElementById('toggleCtrlBtn');
+      const visible = wrap.style.display !== 'none';
+      wrap.style.display = visible ? 'none' : 'block';
+      btn.textContent = visible ? 'Show' : 'Hide';
+    };
+
     // ===== Compare regions (per-region stats + SNR via /analyze_rois) =====
     const addRoiBtn = document.getElementById('addRoiBtn');
+    const clearAllRoiBtn = document.getElementById('clearAllRoiBtn');
     const mroiListEl = document.getElementById('mroiList');
+
+    // Drops every named compare-region (signal + background) in one go. Used both
+    // by the manual "Clear all regions" button and automatically whenever a new
+    // Reference/Test pair is uploaded, so a Background/Signal box left over from a
+    // previous image pair can't silently ride along into a run it doesn't apply to.
+    function clearAllMultiRois() {
+      if (!multiRois.length) return;
+      multiRois = [];
+      renderMroiList();
+      drawROICanvas();
+      scheduleRoiComparison();
+    }
+    clearAllRoiBtn.onclick = clearAllMultiRois;
+
+    // What to actually crop the main output image (and its stats) to for this
+    // Analyze run. Quick ROI (the box currently drawn/committed on the canvas)
+    // wins if present -- same as before. If there's no quick ROI but the user
+    // has added Signal region(s) via Compare Regions, fall back to the union
+    // bounding box of those, so the output isn't silently the full frame just
+    // because the quick-ROI box got cleared or overwritten by a later drag.
+    // Background-role regions are never used for this -- only signal.
+    function getEffectiveRoiForAnalyze() {
+      if (roiNorm) return roiNorm;
+      const signalRois = multiRois.filter(m => m.role !== 'background');
+      if (!signalRois.length) return null;
+      const x0 = Math.min(...signalRois.map(m => m.x));
+      const y0 = Math.min(...signalRois.map(m => m.y));
+      const x1 = Math.max(...signalRois.map(m => m.x + m.w));
+      const y1 = Math.max(...signalRois.map(m => m.y + m.h));
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+
+    // ===== ROI box overlay on the main result images =====
+    // Toggle-able and drawn as a DOM overlay (not baked into the PNG pixels), so the
+    // main Grayscale/Color Difference images can stay full-frame while still letting
+    // you see exactly which box the stats badge is scoped to. Uses the box snapshot
+    // frozen on currentAnalysisData at Analyze time (quickRoiBox/compareRoiBoxes), not
+    // live roiNorm/multiRois, so it always matches what was actually analyzed even if
+    // you keep editing boxes afterward.
+    let roiBoxOverlayVisible = false;
+
+    function currentRoiBoxes() {
+      const d = currentAnalysisData;
+      if (!d || !d.runId) return [];
+      const boxes = [];
+      if (d.quickRoiBox) {
+        boxes.push({ ...d.quickRoiBox, color: '#ffffff', label: 'ROI' });
+      }
+      (d.compareRoiBoxes || []).forEach(m => {
+        boxes.push({ ...m, color: m.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR, label: m.name });
+      });
+      return boxes;
+    }
+
+    // Standard CSS object-fit:contain math -- the <img> element's own box can be larger
+    // than the image actually renders at (letterboxed top/bottom or left/right), so the
+    // overlay needs the real rendered content rect or boxes would drift off the pixels
+    // they're supposed to mark.
+    function containRect(containerW, containerH, imgW, imgH) {
+      if (!imgW || !imgH) return { w: containerW, h: containerH, x: 0, y: 0 };
+      const containerRatio = containerW / containerH;
+      const imgRatio = imgW / imgH;
+      let w, h;
+      if (imgRatio > containerRatio) {
+        w = containerW;
+        h = containerW / imgRatio;
+      } else {
+        h = containerH;
+        w = containerH * imgRatio;
+      }
+      return { w, h, x: (containerW - w) / 2, y: (containerH - h) / 2 };
+    }
+
+    // Pixel size of the diff region within a served PNG (grayBase64/colorBase64/etc),
+    // which is shorter than the PNG's own decoded height because the server appends a
+    // footer band below it (_stamp_footer). Normalized (0-1) ROI coordinates are
+    // fractions of THIS, not of the decoded image -- using naturalWidth/naturalHeight
+    // directly makes boxes drift down into the footer. Falls back to the image's own
+    // natural size if imageW/imageH weren't returned (e.g. an older cached run).
+    function getDiffPixelSize(imgNaturalW, imgNaturalH) {
+      const d = currentAnalysisData;
+      return {
+        w: (d && d.imageW) || imgNaturalW,
+        h: (d && d.imageH) || imgNaturalH,
+      };
+    }
+
+    function drawRoiBoxLayer(imgEl, layerEl, boxes) {
+      layerEl.innerHTML = '';
+      if (!imgEl.naturalWidth || !boxes.length) return;
+      const cw = imgEl.clientWidth, ch = imgEl.clientHeight;
+      layerEl.style.width = cw + 'px';
+      layerEl.style.height = ch + 'px';
+      const rect = containRect(cw, ch, imgEl.naturalWidth, imgEl.naturalHeight);
+      // Scale normalized y/h (fractions of the diff region) into fractions of the whole
+      // decoded PNG (diff + footer) before mapping onto the contain-fit rect. x/w need
+      // no such scaling -- the footer only adds height, never width.
+      const diffSize = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
+      const scaleY = diffSize.h / imgEl.naturalHeight;
+      boxes.forEach(b => {
+        const el = document.createElement('div');
+        el.className = 'roi-box-item';
+        el.style.left = (rect.x + b.x * rect.w) + 'px';
+        el.style.top = (rect.y + (b.y * scaleY) * rect.h) + 'px';
+        el.style.width = (b.w * rect.w) + 'px';
+        el.style.height = (b.h * scaleY * rect.h) + 'px';
+        el.style.borderColor = b.color;
+        const label = document.createElement('span');
+        label.className = 'roi-box-label';
+        label.textContent = b.label;
+        label.style.background = b.color;
+        el.appendChild(label);
+        layerEl.appendChild(el);
+      });
+    }
+
+    function renderRoiBoxOverlays() {
+      const boxes = currentRoiBoxes();
+      drawRoiBoxLayer(document.getElementById('grayImg'), document.getElementById('grayRoiLayer'), boxes);
+      drawRoiBoxLayer(document.getElementById('colorImg'), document.getElementById('colorRoiLayer'), boxes);
+    }
+
+    // Called after every fresh Analyze result: shows/hides the toggle button depending
+    // on whether there's anything to overlay, and resets to hidden so each new run
+    // starts from the same full-image view.
+    function refreshRoiBoxUI() {
+      const boxes = currentRoiBoxes();
+      const btn = document.getElementById('toggleRoiBoxBtn');
+      btn.style.display = boxes.length ? '' : 'none';
+      roiBoxOverlayVisible = false;
+      btn.textContent = 'Show ROI Box';
+      document.getElementById('grayRoiLayer').classList.remove('visible');
+      document.getElementById('colorRoiLayer').classList.remove('visible');
+    }
+
+    document.getElementById('toggleRoiBoxBtn').onclick = () => {
+      roiBoxOverlayVisible = !roiBoxOverlayVisible;
+      document.getElementById('toggleRoiBoxBtn').textContent = roiBoxOverlayVisible ? 'Hide ROI Box' : 'Show ROI Box';
+      document.getElementById('grayRoiLayer').classList.toggle('visible', roiBoxOverlayVisible);
+      document.getElementById('colorRoiLayer').classList.toggle('visible', roiBoxOverlayVisible);
+      if (roiBoxOverlayVisible) renderRoiBoxOverlays();
+    };
+
+    window.addEventListener('resize', debounce(() => {
+      if (roiBoxOverlayVisible) renderRoiBoxOverlays();
+    }, 150));
+
+    // Build a single PNG combining the full color-diff image, the ROI box(es) drawn on
+    // top, and (if Compare Regions was used) the signal/background/SNR table beneath
+    // it -- a self-contained "what was measured" image, used by both the ZIP and the
+    // standalone "Download ROI Summary" button so they're always identical. Pure
+    // canvas compositing client-side; returns null if there's nothing to summarize
+    // (no quick ROI and no compare regions on this run).
+    async function buildRoiSummaryDataURL() {
+      const d = currentAnalysisData;
+      if (!d || !d.colorBase64) return null;
+      const boxes = currentRoiBoxes();
+      const regions = (d.rois && d.rois.rois) || [];
+      if (!boxes.length && !regions.length) return null;
+
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = `data:image/png;base64,${d.colorBase64}`;
+      });
+
+      // Scale the base image down to a sane max width for a reasonably sized file,
+      // same idea as the ROI/Line canvases elsewhere in this app.
+      const MAX_W = 1600;
+      const scale = Math.min(1, MAX_W / img.naturalWidth);
+      const imgW = Math.round(img.naturalWidth * scale);
+      const imgH = Math.round(img.naturalHeight * scale);
+      // Normalized y/h are fractions of the diff region, not of the decoded PNG (which
+      // is taller -- footer band below it), so scale into decoded-PNG fractions first.
+      const diffSize = getDiffPixelSize(img.naturalWidth, img.naturalHeight);
+      const scaleY = diffSize.h / img.naturalHeight;
+
+      const cols = ['Region', 'Role', 'Mean', 'Peak', 'Std', 'Cov %', 'SNR(mean)', 'SNR(std)'];
+      const rowH = 26, headerH = 30;
+      const tableH = regions.length ? headerH + rowH * regions.length + 14
+        : (boxes.length ? 40 : 0);
+      const colW = imgW / cols.length;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = imgW;
+      canvas.height = imgH + tableH;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0b0c0d';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, imgW, imgH);
+
+      boxes.forEach(b => {
+        const bx = b.x * imgW, by = (b.y * scaleY) * imgH, bw = b.w * imgW, bh = (b.h * scaleY) * imgH;
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.font = '600 13px "IBM Plex Mono", monospace';
+        const tw = ctx.measureText(b.label).width;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(bx, Math.max(0, by - 18), tw + 10, 18);
+        ctx.fillStyle = '#0b0c0d';
+        ctx.fillText(b.label, bx + 5, Math.max(13, by - 5));
+      });
+
+      if (regions.length) {
+        let y = imgH;
+        ctx.fillStyle = '#15171a';
+        ctx.fillRect(0, y, imgW, tableH);
+        ctx.font = '700 13px "IBM Plex Mono", monospace';
+        ctx.fillStyle = '#ffffff';
+        cols.forEach((c, i) => ctx.fillText(c, i * colW + 8, y + 20));
+        y += headerH;
+        ctx.font = '13px "IBM Plex Mono", monospace';
+        regions.forEach((r, i) => {
+          if (i % 2 === 1) {
+            ctx.fillStyle = 'rgba(255,255,255,0.05)';
+            ctx.fillRect(0, y, imgW, rowH);
+          }
+          ctx.fillStyle = r.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR;
+          const vals = [
+            r.name, r.role, r.mean, r.peak, r.std, r.coverage,
+            r.snr_mean == null ? '—' : r.snr_mean, r.snr_std == null ? '—' : r.snr_std,
+          ];
+          vals.forEach((v, ci) => ctx.fillText(String(v), ci * colW + 8, y + 18));
+          y += rowH;
+        });
+      } else if (boxes.length && d.stats) {
+        const y = imgH;
+        ctx.fillStyle = '#15171a';
+        ctx.fillRect(0, y, imgW, tableH);
+        ctx.font = '13px "IBM Plex Mono", monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(
+          `ROI -- Peak: ${d.stats.peak}  Mean: ${d.stats.mean}  Coverage: ${d.stats.coverage}%`,
+          10, y + tableH / 2 + 5,
+        );
+      }
+
+      return canvas.toDataURL('image/png');
+    }
+
+    document.getElementById('dlRoiSummaryBtn').onclick = async () => {
+      const btn = document.getElementById('dlRoiSummaryBtn');
+      const original = btn.textContent;
+      btn.textContent = 'Building...';
+      btn.disabled = true;
+      try {
+        const dataUrl = await buildRoiSummaryDataURL();
+        if (!dataUrl) {
+          alert('No ROI box or Compare Regions data to summarize for this run.');
+          return;
+        }
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `roi_summary_${currentAnalysisData.runId || 'run'}.png`;
+        a.click();
+      } finally {
+        btn.textContent = original;
+        btn.disabled = false;
+      }
+    };
+
+    // ===== Zoom to Signal ROI (full-resolution crop, no downscaling) =====
+    // Quick ROI wins if set (it IS the region of interest). Otherwise, with multiple
+    // named Signal regions from Compare Regions, this shows one crop of their union
+    // bounding box rather than a separate crop per region -- simpler, and matches the
+    // same union-box convention already used to auto-scope stats when no quick ROI is
+    // drawn (see getEffectiveRoiForAnalyze). Background-role regions are never used
+    // for this crop.
+    function getSignalCropBox() {
+      const d = currentAnalysisData;
+      if (!d || !d.runId) return null;
+      if (d.quickRoiBox) return d.quickRoiBox;
+      const signal = (d.compareRoiBoxes || []).filter(m => m.role !== 'background');
+      if (!signal.length) return null;
+      const x0 = Math.min(...signal.map(m => m.x));
+      const y0 = Math.min(...signal.map(m => m.y));
+      const x1 = Math.max(...signal.map(m => m.x + m.w));
+      const y1 = Math.max(...signal.map(m => m.y + m.h));
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+
+    // Crops directly from the full-resolution color diff (no MAX_W downscale, unlike
+    // the ROI summary composite) since the whole point of this view is to see detail
+    // that's too small to read in the full-frame image.
+    async function buildSignalRoiCropDataURL() {
+      const d = currentAnalysisData;
+      const box = getSignalCropBox();
+      if (!d || !d.colorBase64 || !box || box.w <= 0 || box.h <= 0) return null;
+
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = `data:image/png;base64,${d.colorBase64}`;
+      });
+
+      // Crop against the diff-only pixel size, not naturalWidth/naturalHeight (which
+      // include the footer band the server appends below the diff) -- otherwise a box
+      // near the bottom of the frame ends up partially cropping footer text instead of
+      // image content.
+      const diffSize = getDiffPixelSize(img.naturalWidth, img.naturalHeight);
+      const sx = Math.round(box.x * diffSize.w);
+      const sy = Math.round(box.y * diffSize.h);
+      const sw = Math.max(1, Math.round(box.w * diffSize.w));
+      const sh = Math.max(1, Math.round(box.h * diffSize.h));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = sw;
+      canvas.height = sh;
+      canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      return canvas.toDataURL('image/png');
+    }
+
+    let signalRoiCropRunId = null; // cache key so re-toggling doesn't rebuild every click
+
+    document.getElementById('showSignalRoiBtn').onclick = async () => {
+      const box = document.getElementById('signalRoiBox');
+      const btn = document.getElementById('showSignalRoiBtn');
+      const visible = box.style.display !== 'none';
+      if (visible) {
+        box.style.display = 'none';
+        btn.textContent = 'Zoom to Signal ROI';
+        return;
+      }
+      if (signalRoiCropRunId !== currentAnalysisData.runId) {
+        btn.textContent = 'Building...';
+        btn.disabled = true;
+        try {
+          const dataUrl = await buildSignalRoiCropDataURL();
+          if (!dataUrl) { btn.disabled = false; btn.textContent = 'Zoom to Signal ROI'; return; }
+          document.getElementById('signalRoiImg').src = dataUrl;
+          const isMulti = !currentAnalysisData.quickRoiBox &&
+            (currentAnalysisData.compareRoiBoxes || []).filter(m => m.role !== 'background').length > 1;
+          document.getElementById('signalRoiHint').textContent = isMulti ? '(union of all signal regions)' : '';
+          signalRoiCropRunId = currentAnalysisData.runId;
+        } finally {
+          btn.disabled = false;
+        }
+      }
+      box.style.display = 'flex';
+      btn.textContent = 'Hide Zoomed ROI';
+    };
 
     // Add button is usable only while a box is drawn.
     function updateAddRoiBtn() { addRoiBtn.disabled = !roiNorm; }
 
     function renderMroiList() {
+      clearAllRoiBtn.style.display = multiRois.length ? '' : 'none';
       if (!multiRois.length) {
         mroiListEl.innerHTML = '<div class="mroi-empty">No compare regions yet. Draw a box above, then add it here.</div>';
         return;
@@ -1666,6 +2111,44 @@
 
     renderMroiList();       // show the empty-state hint on first load
 
+    // ===== Remember Experimental Parameters / Camera & Layout fields across reloads =====
+    // These (gas type, flow rate, camera/lens settings, distances...) usually stay the same
+    // across many runs in a row, so losing them on every page refresh is just friction.
+    // Deliberately scoped to just these metadata fields -- not ref/test files or any
+    // ROI/line-profile state, which are tied to a specific image pair and shouldn't persist.
+    const PERSISTED_FIELD_IDS = [
+      'gasType', 'flowRate', 'plasmaStatus', 'plasmaCond',
+      'camType', 'focusSetting', 'iso', 'shutter', 'aperture', 'nozDist', 'lighting', 'notes',
+    ];
+    const PERSIST_KEY = 'bosFormFields';
+
+    function savePersistedFields() {
+      const data = {};
+      PERSISTED_FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) data[id] = el.value;
+      });
+      try { localStorage.setItem(PERSIST_KEY, JSON.stringify(data)); } catch {}
+    }
+
+    function loadPersistedFields() {
+      let data = {};
+      try { data = JSON.parse(localStorage.getItem(PERSIST_KEY) || '{}'); } catch {}
+      PERSISTED_FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && data[id] != null) el.value = data[id];
+      });
+    }
+
+    PERSISTED_FIELD_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', savePersistedFields);
+        el.addEventListener('change', savePersistedFields);
+      }
+    });
+    loadPersistedFields();
+
     // ===== Auto (armed) sliders =====
     // Clicking Auto only LOCKS the slider and marks it "armed" (faint look); no value
     // is fetched yet. When Analyze runs, applyAutoValues() asks /suggest_params for the
@@ -1680,6 +2163,7 @@
       btn.onclick = () => {
         const armed = btn.classList.toggle('active');
         slider.disabled = armed;           // lock while armed
+        valEl.disabled = armed;            // lock the typed-value box too
         valEl.classList.toggle('is-auto', armed);
       };
     });
@@ -1693,11 +2177,12 @@
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
       fd.append('test', testInput.files[0]);
-      if (roiNorm) {
-        fd.append('roi_x', roiNorm.x.toFixed(6));
-        fd.append('roi_y', roiNorm.y.toFixed(6));
-        fd.append('roi_w', roiNorm.w.toFixed(6));
-        fd.append('roi_h', roiNorm.h.toFixed(6));
+      const autoRoi = getEffectiveRoiForAnalyze();
+      if (autoRoi) {
+        fd.append('roi_x', autoRoi.x.toFixed(6));
+        fd.append('roi_y', autoRoi.y.toFixed(6));
+        fd.append('roi_w', autoRoi.w.toFixed(6));
+        fd.append('roi_h', autoRoi.h.toFixed(6));
       }
       fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
       fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
@@ -1711,7 +2196,7 @@
 
       armed.forEach(c => {
         c.slider.value = data[c.field];
-        c.valEl.textContent = c.slider.value;
+        c.valEl.value = c.slider.value;
         paintRange(c.slider);
       });
     }
@@ -1732,6 +2217,43 @@
         return;
       }
 
+      // If Reference 2 is uploaded, bracket Test between two off shots: diff the
+      // main Reference against Reference 2 (both flow OFF) as its own run first
+      // (same align/denoise/threshold, tagged is_control=ON). Its stats become a
+      // noise baseline from the same time window as Test, not a separately-timed
+      // pair, and get shown next to this run's. This step is optional, so if it
+      // fails the real run below still proceeds.
+      let controlResult = null;
+      if (ctrlRef2Input.files.length) {
+        const fdCtrl = new FormData();
+        fdCtrl.append('reference', refInput.files[0]);
+        fdCtrl.append('test', ctrlRef2Input.files[0]);
+        fdCtrl.append('colormap', document.getElementById('colormapSel').value);
+        fdCtrl.append('gain', document.getElementById('gainSlider').value);
+        fdCtrl.append('threshold', document.getElementById('threshSlider').value);
+        fdCtrl.append('noise_floor', document.getElementById('floorSlider').value);
+        fdCtrl.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
+        fdCtrl.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
+        fdCtrl.append('is_control', 'ON');
+        fdCtrl.append('gas_type', 'None');
+        fdCtrl.append('plasma_status', 'OFF');
+        fdCtrl.append('CamType', document.getElementById('camType').value);
+        fdCtrl.append('Focus', document.getElementById('focusSetting').value);
+        fdCtrl.append('Iso', document.getElementById('iso').value);
+        fdCtrl.append('Shutter', document.getElementById('shutter').value);
+        fdCtrl.append('Aperture', document.getElementById('aperture').value);
+        fdCtrl.append('NozDist', document.getElementById('nozDist').value);
+        fdCtrl.append('Light', document.getElementById('lighting').value);
+        fdCtrl.append('Notes', 'Noise baseline: Reference vs Reference 2, bracketing this run\'s Test shot');
+        try {
+          const resCtrl = await fetch('/analyze', { method: 'POST', body: fdCtrl });
+          if (resCtrl.ok) {
+            const dataCtrl = await resCtrl.json();
+            controlResult = { runId: dataCtrl.run_id, stats: dataCtrl.stats };
+          }
+        } catch (err) { /* non-fatal, proceed without a control comparison */ }
+      }
+
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
       fd.append('test', testInput.files[0]);
@@ -1742,11 +2264,15 @@
       fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
       fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
 
-      if (roiNorm) {
-        fd.append('roi_x', roiNorm.x.toFixed(6));
-        fd.append('roi_y', roiNorm.y.toFixed(6));
-        fd.append('roi_w', roiNorm.w.toFixed(6));
-        fd.append('roi_h', roiNorm.h.toFixed(6));
+      // Quick ROI wins if drawn; otherwise fall back to the Signal region(s) from
+      // Compare Regions so the output image doesn't quietly revert to the full
+      // frame just because there's no separate quick-ROI box active right now.
+      const effectiveRoi = getEffectiveRoiForAnalyze();
+      if (effectiveRoi) {
+        fd.append('roi_x', effectiveRoi.x.toFixed(6));
+        fd.append('roi_y', effectiveRoi.y.toFixed(6));
+        fd.append('roi_w', effectiveRoi.w.toFixed(6));
+        fd.append('roi_h', effectiveRoi.h.toFixed(6));
       }
 
       // Send whatever is currently drawn so the server logs it under this
@@ -1761,11 +2287,18 @@
         fd.append('line', JSON.stringify({
           x0: +lineNorm.x0.toFixed(6), y0: +lineNorm.y0.toFixed(6),
           x1: +lineNorm.x1.toFixed(6), y1: +lineNorm.y1.toFixed(6),
-          denoise: document.getElementById('lineDenoiseToggle').checked,
         }));
       }
-      const isControl = document.getElementById('isControlToggle').checked ? 'ON' : 'OFF';
-      fd.append('is_control', isControl);
+      fd.append('is_control', 'OFF');
+
+      // If a Reference 2 bracketing shot was provided, the noise-baseline
+      // (Ref vs Ref2) stats were already computed above as controlResult —
+      // forward them so the server can burn a "Noise Baseline" line into
+      // this run's own output image footer, not just the results table.
+      if (controlResult && controlResult.stats) {
+        fd.append('control_peak', controlResult.stats.peak);
+        fd.append('control_mean', controlResult.stats.mean);
+      }
 
       const logFields = {
         gas_type: document.getElementById('gasType').value,
@@ -1807,19 +2340,32 @@
           thresholdedBase64: data.thresholded,
           stats: data.stats,
           alignShift: data.align_shift,  // {dx, dy} if align was on, else null
+          // Pre-footer pixel size of grayBase64/colorBase64/etc -- the served PNGs are
+          // taller than this (there's a footer band appended below), so any client-side
+          // math that converts normalized (0-1) ROI coordinates into pixels on those
+          // images needs to scale against THIS, not the decoded <img>'s naturalHeight,
+          // or it drifts down into the footer. See getDiffPixelSize().
+          imageW: data.image_width,
+          imageH: data.image_height,
           rois: data.rois,       // /analyze_rois-shaped result, or null
           line: data.line,       // line profile + echoed x0..y1/denoise, or null
-          isControl: isControl,
+          control: controlResult,  // {runId, stats} if Control Ref 1/2 were both uploaded, else null
           log: logFields,
           display: displayFields,
           refName: refInput.files[0].name,
           testName: testInput.files[0].name,
-          roi: roiNorm ? { ...roiNorm } : null
+          roi: effectiveRoi ? { ...effectiveRoi } : null,
+          // Snapshot of exactly what was drawn for THIS run, frozen at Analyze time so
+          // the on-screen box overlay and any later download/ZIP always match what was
+          // actually analyzed, even if the user keeps editing boxes afterward.
+          quickRoiBox: roiNorm ? { ...roiNorm } : null,
+          compareRoiBoxes: multiRois.map(m => ({ name: m.name, role: m.role, x: m.x, y: m.y, w: m.w, h: m.h })),
         };
 
         document.getElementById('grayImg').src = `data:image/png;base64,${data.grayscale}`;
         document.getElementById('colorImg').src = `data:image/png;base64,${data.color}`;
         document.getElementById('colorCmapName').textContent = displayFields.cmap;
+        refreshRoiBoxUI();
 
         if (data.raw) document.getElementById('rawImg').src = `data:image/png;base64,${data.raw}`;
         if (data.thresholded) document.getElementById('threshImg').src = `data:image/png;base64,${data.thresholded}`;
@@ -1829,21 +2375,30 @@
         document.getElementById('showRawBtn').textContent = 'Show Raw';
         document.getElementById('showThreshBtn').textContent = 'Show Thresholded';
 
+        // Full Signal ROI crop: collapsed back down each run (it's rebuilt lazily on
+        // next click, see signalRoiCropRunId), and the button itself only shows up
+        // when this run actually has a quick ROI or a named Signal region to crop to.
+        document.getElementById('signalRoiBox').style.display = 'none';
+        const signalRoiBtn = document.getElementById('showSignalRoiBtn');
+        signalRoiBtn.textContent = 'Zoom to Signal ROI';
+        signalRoiBtn.style.display = getSignalCropBox() ? '' : 'none';
+
         if (data.stats) {
           document.getElementById('statMax').textContent = data.stats.peak;
           document.getElementById('statMean').textContent = data.stats.mean;
           document.getElementById('statCoverage').textContent = data.stats.coverage + '%';
-          const coverageLabel = roiNorm
+          const coverageLabel = effectiveRoi
             ? `Coverage in ROI (diff>${displayFields.thresh})`
             : `Coverage (diff>${displayFields.thresh})`;
           document.getElementById('statCoverageLabel').textContent = coverageLabel;
         }
 
         const roiBar = document.getElementById('roiActiveBar');
-        if (roiNorm) {
-          const wp = (roiNorm.w * 100).toFixed(1);
-          const hp = (roiNorm.h * 100).toFixed(1);
-          roiBar.textContent = `Quick ROI active: ${wp}% × ${hp}% of the image. The stats come from inside that box only.`;
+        if (effectiveRoi) {
+          const wp = (effectiveRoi.w * 100).toFixed(1);
+          const hp = (effectiveRoi.h * 100).toFixed(1);
+          const source = roiNorm ? 'Quick ROI active' : 'Stats auto-scoped to Signal region(s) from Compare Regions';
+          roiBar.textContent = `${source}: ${wp}% × ${hp}% of the image. Stats come from inside that box only -- images below always show the full frame (use "Show ROI Box" to see where it is).`;
           roiBar.style.display = 'block';
         } else {
           roiBar.style.display = 'none';
@@ -1856,6 +2411,10 @@
         const roiPanel = document.getElementById('roiResultPanel');
         if (data.rois) {
           fillRoiTable(data.rois, document.getElementById('roiTableBody'), document.getElementById('roiTableNote'));
+          // Snapshot the ROI canvas as it looked at Analyze time (diff preview +
+          // the named boxes/labels drawROICanvas() already draws) so the result
+          // panel keeps showing which region was which after the user keeps drawing.
+          document.getElementById('roiOverlayImg').src = roiCanvas.toDataURL('image/png');
           roiPanel.style.display = 'flex';
         } else {
           roiPanel.style.display = 'none';
@@ -1894,6 +2453,17 @@
         ? `${(roi.w * 100).toFixed(1)}% × ${(roi.h * 100).toFixed(1)}% from (${(roi.x * 100).toFixed(1)}%, ${(roi.y * 100).toFixed(1)}%)`
         : 'Full image';
 
+      // Reference 2 was uploaded and logged as a noise baseline alongside this
+      // run, so show its stats and a simple mean ratio under this run's numbers.
+      const controlRows = d.control ? [
+        ['group', 'Noise Baseline'],
+        ['Baseline Run ID', d.control.runId],
+        ['Baseline Peak (p99)', d.control.stats.peak],
+        ['Baseline Mean', d.control.stats.mean],
+        ['Baseline Coverage %', d.control.stats.coverage != null ? d.control.stats.coverage + '%' : ''],
+        ['Mean vs Baseline', d.control.stats.mean ? (s.mean / d.control.stats.mean).toFixed(2) + '×' : ''],
+      ] : [];
+
       const rows = [
         ['group', 'Output Metrics'],
         ['Run ID', d.runId],
@@ -1901,12 +2471,12 @@
         ['Mean Diff', s.mean],
         ['Coverage %', s.coverage != null ? s.coverage + '%' : ''],
         ['ROI', roiTxt],
+        ...controlRows,
         ['group', 'Experiment'],
         ['Gas Type', d.log.gas_type],
         ['Flow Rate (L/min)', d.log.flow_rate],
         ['Plasma Status', d.log.plasma_status],
         ['Plasma Condition', d.log.plasma_condition],
-        ['Control Run', d.isControl],
         ['group', 'Display'],
         ['Colormap', disp.cmap],
         ['Gain', disp.gain != null ? disp.gain + '×' : ''],
@@ -1956,8 +2526,14 @@
         const cmap = currentAnalysisData.display.cmap;
         zip.file("diff_grayscale.png", currentAnalysisData.grayBase64, { base64: true });
         zip.file(`diff_color_${cmap}.png`, currentAnalysisData.colorBase64, { base64: true });
-        if (currentAnalysisData.rawBase64) zip.file("raw_diff.png", currentAnalysisData.rawBase64, { base64: true });
-        if (currentAnalysisData.thresholdedBase64) zip.file("thresholded_diff.png", currentAnalysisData.thresholdedBase64, { base64: true });
+
+        // Full image + ROI box(es) + region table baked in, same as the standalone
+        // "Download ROI Summary" button. Skipped if this run had no quick ROI or
+        // Compare Regions to summarize.
+        const roiSummaryDataUrl = await buildRoiSummaryDataURL();
+        if (roiSummaryDataUrl) {
+          zip.file("roi_summary.png", roiSummaryDataUrl.split(',')[1], { base64: true });
+        }
 
         // Three CSVs with ONLY this run's rows, same columns and run_id as the
         // server's accumulating runs.csv / roi_regions.csv / line_profiles.csv,
@@ -1978,7 +2554,7 @@
            "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
            "threshold", "align", "peak", "mean", "coverage", "denoise"],
           [[runId, cad.datetime, l.gas_type, l.flow_rate, l.plasma_status, l.plasma_condition,
-            cad.isControl, l.CamType, l.Iso, l.Shutter, l.Aperture, l.NozDist,
+            'OFF', l.CamType, l.Iso, l.Shutter, l.Aperture, l.NozDist,
             l.Light, l.Notes, cad.refName, cad.testName, d.cmap, d.gain, d.floor,
             d.thresh, d.align, s.peak, s.mean, s.coverage, d.denoise]]
         ));

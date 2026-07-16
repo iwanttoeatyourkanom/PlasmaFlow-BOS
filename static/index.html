@@ -263,10 +263,35 @@
     button#analyzeBtn:disabled { background: var(--card-2); color: var(--faint); cursor: not-allowed; }
     #status { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); text-align: center; }
 
+    /* ===== Mode toggle ===== */
+    .mode-toggle { display: inline-flex; gap: 0.3rem; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.3rem; margin-top: 1rem; }
+    .mode-btn { background: transparent; color: var(--muted); border: none; border-radius: var(--radius-sm); padding: 0.55rem 1.1rem; font-size: 0.82rem; font-weight: 600; font-family: var(--sans); cursor: pointer; transition: .18s; }
+    .mode-btn:hover { color: var(--text); }
+    .mode-btn.active { background: var(--text); color: #0b0c0d; }
+
     /* ===== Results view ===== */
     #resultView { display: none; flex-direction: column; gap: 1.25rem; max-width: 1320px; margin: 0 auto; padding: 2.4rem 1.25rem 5rem; }
     body.results-mode #uploadView { display: none; }
     body.results-mode #resultView { display: flex; }
+
+    /* ===== Compare (Plasma On/Off) results view ===== */
+    #compareResultView { display: none; flex-direction: column; gap: 1.25rem; max-width: 1320px; margin: 0 auto; padding: 2.4rem 1.25rem 5rem; }
+    body.compare-results-mode #uploadView { display: none; }
+    body.compare-results-mode #compareResultView { display: flex; }
+    .compare-frame { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+    .compare-col { display: flex; flex-direction: column; gap: 0.6rem; }
+    .compare-col-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .compare-col-label.off { color: var(--muted); }
+    .compare-col-label.on { color: #7cc4ff; }
+    .compare-col img { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .compare-table td.delta-up { color: #7cc4ff; }
+    .compare-table td.delta-flat { color: var(--muted); }
+    /* 2-tier grouped header (Mean/Peak/Coverage %, each spanning OFF|ON|x) so it's
+       visually clear which OFF/ON pair belongs to which metric, instead of one flat
+       row of 9 same-looking column names. */
+    .compare-table thead tr:nth-child(2) th { text-align: right; padding-top: 0.3rem; }
+    .compare-table .grp-start { border-left: 1px solid var(--border); }
+    @media (max-width: 860px) { .compare-frame { grid-template-columns: 1fr; } }
 
     .rv-bar { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
     .back-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.6rem 1.1rem; font-weight: 500; font-size: 0.85rem; cursor: pointer; transition: .18s; display: inline-flex; align-items: center; gap: 0.45rem; }
@@ -410,6 +435,10 @@
           <div class="sub">BOS Visualization of Gas-Jet and Plasma Actuator-Induced Flow · by keng</div>
         </div>
       </div>
+      <div class="mode-toggle" id="modeToggle">
+        <button type="button" class="mode-btn active" data-mode="single">Single Analysis</button>
+        <button type="button" class="mode-btn" data-mode="compare">Jet Plasma On/Off Compare</button>
+      </div>
     </div>
 
     <div class="container">
@@ -419,7 +448,7 @@
           <div class="card-num">1</div>
           <div class="card-head-text">
             <h2 class="card-title">Image Input</h2>
-            <div class="card-desc">Upload two photos: flow OFF (reference) and flow ON (test).</div>
+            <div class="card-desc" id="imageInputDesc">Upload two photos: flow OFF (reference) and flow ON (test).</div>
           </div>
           <div class="header-spacer"></div>
           <button type="button" class="cg-trigger" id="captureGuideOpen" aria-haspopup="dialog">
@@ -436,11 +465,21 @@
             <input type="file" id="refInput" accept="image/*" />
           </div>
           <div class="drop-zone" id="testZone">
-            <label>Test</label>
+            <label id="testZoneLabel">Test</label>
             <div class="preview-box" id="testPreviewBox"><span class="placeholder">Click or drag image</span></div>
             <div class="file-name" id="testFileName">No file chosen</div>
             <input type="file" id="testInput" accept="image/*" />
           </div>
+        </div>
+        <div class="drop-zone" id="testOnZone" style="display:none; margin: 0.9rem auto 0; max-width: calc(50% - 0.625rem);">
+          <label>Test (Plasma ON, gas flowing)</label>
+          <div class="preview-box" id="testOnPreviewBox"><span class="placeholder">Click or drag image</span></div>
+          <div class="file-name" id="testOnFileName">No file chosen</div>
+          <input type="file" id="testOnInput" accept="image/*" />
+        </div>
+        <div class="input-desc" id="compareModeHint" style="display:none; margin-top: 0.6rem;">
+          Compare mode: same Reference (flow OFF) diffed against two Test shots -- Plasma OFF and Plasma ON -- using
+          the same ROI/settings for both, so the two runs line up directly.
         </div>
         <div class="form-group" style="margin-top: 1.3rem;">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
@@ -449,7 +488,7 @@
           </div>
           <div class="input-desc">One more photo, flow OFF, taken right after Test so Test is bracketed between two off shots. Analyze diffs Reference against this to get a noise baseline from the same time window as your real shot.</div>
           <div id="ctrlZonesWrap" style="margin-top: 0.65rem; display: none;">
-            <div class="drop-zone" id="ctrlRef2Zone" style="max-width: calc(50% - 0.625rem);">
+            <div class="drop-zone" id="ctrlRef2Zone" style="max-width: calc(50% - 0.625rem); margin: 0 auto;">
               <label>Reference 2</label>
               <div class="preview-box" id="ctrlRef2PreviewBox"><span class="placeholder">Click or drag image</span></div>
               <div class="file-name" id="ctrlRef2FileName">No file chosen</div>
@@ -503,7 +542,7 @@
               <div class="slider-header"><label>Coverage Threshold</label><input type="number" id="threshVal" class="slider-val slider-val-input" min="1" max="80" step="1" value="1" /></div>
               <input type="range" id="threshSlider" min="1" max="80" step="1" value="1" />
               <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
-              <div class="input-desc">How strong a pixel must be to count as "flow". Higher = stricter. Affects both Coverage % and the region comparison table. Auto picks a value when you press Analyze (works best when the area is mostly background; a tight box around the jet may read too high); click Auto again to set it yourself.</div>
+              <div class="input-desc">Counts as "flow" if diff &gt; threshold (strict). Higher = stricter. Affects Coverage % and the region table. Auto suggests a value (best on mostly-background areas).</div>
             </div>
             <div class="form-group">
               <label for="alignToggle">Align Images</label>
@@ -556,24 +595,10 @@
         <div class="mroi-section">
           <div class="mroi-head">
             <div class="settings-subhead">Compare Regions (Signal vs Background) <span class="tag">(get a signal-to-noise table)</span></div>
-            <button type="button" id="addRoiBtn" class="btn-secondary mroi-add" disabled>+ Add this box to compare</button>
             <button type="button" id="clearAllRoiBtn" class="btn-secondary mroi-add" style="display:none;">Clear all regions</button>
           </div>
-          <div class="card-desc" style="margin-bottom: 1rem;">Draw boxes above and add them here. Mark one as <strong>Background</strong> (no flow) and the others as <strong>Signal</strong> (the jet); the signal-to-noise table below updates automatically as you edit. Pressing Analyze saves it to the log.</div>
+          <div class="card-desc" style="margin-bottom: 1rem;">Every box you drag above is added here automatically. Mark one as <strong>Background</strong> (no flow) and the others as <strong>Signal</strong> (the jet); the signal-to-noise table shows up in the results after you press Analyze.</div>
           <div id="mroiList" class="mroi-list"></div>
-          <div id="mroiStatus" class="mroi-empty" style="display:none;"></div>
-          <div id="mroiResultWrap" style="display:none; margin-top:1.1rem;">
-            <table class="roi-table">
-              <thead>
-                <tr>
-                  <th>Region</th><th>Role</th><th>Mean</th><th>Peak (p99)</th>
-                  <th>Std (noise)</th><th>Coverage %</th><th>SNR (mean)</th><th>SNR (std)</th>
-                </tr>
-              </thead>
-              <tbody id="mroiTableBody"></tbody>
-            </table>
-            <div id="mroiTableNote" class="roi-note"></div>
-          </div>
         </div>
       </div>
 
@@ -617,7 +642,7 @@
         <div class="grid-4" style="margin-bottom: 1.1rem;">
           <div class="form-group"><label>Gas Type</label><input type="text" id="gasType" class="form-control" placeholder="Ar, He, None" /></div>
           <div class="form-group"><label>Flow Rate (L/min)</label><input type="number" id="flowRate" class="form-control" step="0.1" value="0.0" /></div>
-          <div class="form-group"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
+          <div class="form-group" id="plasmaStatusRow"><label>Plasma Status</label><select id="plasmaStatus" class="form-control"><option value="OFF">OFF</option><option value="ON">ON</option></select></div>
           <div class="form-group"><label>Plasma Condition</label><input type="text" id="plasmaCond" class="form-control" /></div>
         </div>
       </div>
@@ -719,7 +744,7 @@
       <div class="extra-views-toggle">
         <button id="showRawBtn" class="btn-secondary" type="button">Show Raw</button>
         <button id="showThreshBtn" class="btn-secondary" type="button">Show Thresholded</button>
-        <button id="showSignalRoiBtn" class="btn-secondary" type="button" style="display:none;">Zoom to Signal ROI</button>
+        <button id="showSignalRoiBtn" class="btn-secondary" type="button" style="display:none;">Show Zoomed Signal ROI</button>
       </div>
 
       <div class="image-frame" style="margin-top:1.25rem;">
@@ -782,6 +807,106 @@
       </div>
       <table class="result-table">
         <tbody id="resultTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="compareResultView">
+    <div class="rv-bar">
+      <button id="compareBackBtn" class="back-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+        Back to Setup
+      </button>
+      <div class="rv-title">Jet Plasma On/Off Compare</div>
+    </div>
+
+    <div class="input-desc">
+      Both runs below share the same Reference, ROI/Compare Regions, and settings, so a difference between OFF and
+      ON here is more directly comparable than two separately-configured single runs. Still worth checking against
+      a Noise Baseline before concluding a difference is a genuine plasma effect rather than shot-to-shot noise.
+    </div>
+
+    <div class="rv-panel">
+      <div class="rv-panel-head">
+        <h3>Output Images</h3>
+        <div style="display:flex; gap:0.6rem;">
+          <button id="dlCompareBtn" class="btn-secondary" type="button">Download Comparison Image</button>
+          <button id="dlCompareZipBtn" class="dl-zip-btn">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download ZIP
+          </button>
+        </div>
+      </div>
+      <div class="compare-frame">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF · Pseudo-color</div>
+          <img id="compareOffImg" alt="Plasma OFF diff" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON · Pseudo-color</div>
+          <img id="compareOnImg" alt="Plasma ON diff" />
+        </div>
+      </div>
+      <div class="compare-frame" style="margin-top:1.1rem;">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF · Grayscale</div>
+          <img id="compareOffGrayImg" alt="Plasma OFF grayscale diff" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON · Grayscale</div>
+          <img id="compareOnGrayImg" alt="Plasma ON grayscale diff" />
+        </div>
+      </div>
+    </div>
+
+    <div class="rv-panel" id="compareRoiPanel" style="display:none;">
+      <div class="rv-panel-head">
+        <h3>Region Comparison <span class="hint">same ROI/Compare Regions, both runs</span></h3>
+      </div>
+      <div class="compare-frame">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF · ROI Regions</div>
+          <img id="compareRoiOverlayOffImg" alt="Plasma OFF ROI regions overlay" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON · ROI Regions</div>
+          <img id="compareRoiOverlayOnImg" alt="Plasma ON ROI regions overlay" />
+        </div>
+      </div>
+      <table class="roi-table compare-table" style="margin-top: 1.1rem;">
+        <thead>
+          <tr>
+            <th rowspan="2">Region</th><th rowspan="2">Role</th>
+            <th colspan="3" class="grp-mean grp-start">Mean</th>
+            <th colspan="3" class="grp-peak grp-start">Peak</th>
+            <th colspan="3" class="grp-cov grp-start">Coverage %</th>
+            <th colspan="3" class="grp-snr grp-start">SNR (mean)</th>
+          </tr>
+          <tr>
+            <th class="grp-mean grp-start">OFF</th><th class="grp-mean">ON</th><th class="grp-mean">ON / OFF</th>
+            <th class="grp-peak grp-start">OFF</th><th class="grp-peak">ON</th><th class="grp-peak">ON / OFF</th>
+            <th class="grp-cov grp-start">OFF</th><th class="grp-cov">ON</th><th class="grp-cov">ON / OFF</th>
+            <th class="grp-snr grp-start">OFF</th><th class="grp-snr">ON</th><th class="grp-snr">ON / OFF</th>
+          </tr>
+        </thead>
+        <tbody id="compareRoiTableBody"></tbody>
+      </table>
+      <div class="roi-note">
+        ON / OFF close to 1.0x means plasma made no measurable difference beyond noise in that region. SNR (mean) =
+        region mean ÷ background mean for that run; close to 1x means that run's signal is indistinguishable from
+        noise. Blank if no region is marked Background.
+      </div>
+    </div>
+
+    <div class="rv-panel" id="compareWholePanel" style="display:none;">
+      <div class="rv-panel-head">
+        <h3>Whole-Frame Stats <span class="hint">no ROI/Compare Regions drawn -- full frame</span></h3>
+      </div>
+      <table class="roi-table compare-table">
+        <thead>
+          <tr><th>Metric</th><th>OFF</th><th>ON</th><th>ON / OFF</th></tr>
+        </thead>
+        <tbody id="compareWholeTableBody"></tbody>
       </table>
     </div>
   </div>
@@ -855,12 +980,46 @@
 
     const refInput = document.getElementById('refInput');
     const testInput = document.getElementById('testInput');
+    const testOnInput = document.getElementById('testOnInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const autoFloorBtn = document.getElementById('autoFloorBtn');
     const autoThreshBtn = document.getElementById('autoThreshBtn');
     const statusEl = document.getElementById('status');
 
     let currentAnalysisData = {};
+
+    // ===== App mode: Single Analysis vs Plasma On/Off Compare =====
+    // Compare mode reuses the same Reference/ROI/Settings/Experimental Parameter
+    // cards as Single mode -- it just needs a second Test photo (Plasma ON) and
+    // runs /analyze twice (once per Test) with identical params, so the two
+    // results are directly comparable and share one drawn ROI.
+    let appMode = 'single';
+
+    function updateAnalyzeEnabled() {
+      const baseReady = refInput.files.length && testInput.files.length;
+      const ready = appMode === 'compare' ? (baseReady && testOnInput.files.length) : baseReady;
+      analyzeBtn.disabled = !ready;
+      if (ready) statusEl.textContent = "Ready. Press Analyze when you're set.";
+    }
+
+    function setAppMode(mode) {
+      appMode = mode;
+      const isCompare = mode === 'compare';
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+      document.getElementById('testOnZone').style.display = isCompare ? '' : 'none';
+      document.getElementById('compareModeHint').style.display = isCompare ? '' : 'none';
+      document.getElementById('testZoneLabel').textContent = isCompare ? 'Test (Plasma OFF, gas flowing)' : 'Test';
+      document.getElementById('imageInputDesc').textContent = isCompare
+        ? 'Upload the shared Reference (flow OFF), then a Test shot for Plasma OFF and one for Plasma ON.'
+        : 'Upload two photos: flow OFF (reference) and flow ON (test).';
+      document.getElementById('plasmaStatusRow').style.display = isCompare ? 'none' : '';
+      analyzeBtn.textContent = isCompare ? 'Compare Analyze' : 'Analyze';
+      updateAnalyzeEnabled();
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.onclick = () => setAppMode(btn.dataset.mode);
+    });
 
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
     // Slider <-> number box, kept in sync both ways so a value can be dragged or typed.
@@ -1056,7 +1215,6 @@
         clearBtn.style.display = 'none';
         roiCanvas.classList.remove('has-roi');
       }
-      updateAddRoiBtn();
     }
 
     function clearROI() {
@@ -1091,6 +1249,12 @@
     function finalizeROI() {
       roiDragging = false;
       commitROI();
+      // Every completed drag becomes a Compare Region right away -- no separate
+      // "Add" step. roiNorm still wins as the Quick ROI that scopes the main
+      // output/stats (see getEffectiveRoiForAnalyze); this just also drops a
+      // copy into the list so signal/background SNR comparison builds up as
+      // you draw, without an extra click per box.
+      if (roiNorm) addRoiAsRegion(roiNorm);
     }
 
     // Drop a default centered box (~70% of the image) so the user sees a frame
@@ -1565,11 +1729,9 @@
       };
       reader.readAsDataURL(file);
 
-      analyzeBtn.disabled = !(refInput.files.length && testInput.files.length);
+      updateAnalyzeEnabled();
       // A new image changes the diff — refresh whatever is drawn, live.
-      scheduleRoiComparison();
       if (lineNorm) scheduleLineProfile();
-      if (!analyzeBtn.disabled) statusEl.textContent = "Ready. Press Analyze when you're set.";
     }
 
     setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
@@ -1607,6 +1769,18 @@
     const ctrlRef2Input = document.getElementById('ctrlRef2Input');
     setupControlZone('ctrlRef2Zone', ctrlRef2Input, 'ctrlRef2PreviewBox', 'ctrlRef2FileName');
 
+    // Test (Plasma ON), compare-mode only. Reuses the same generic zone setup as
+    // Reference 2 above, then layers on an Analyze-enabled check (Reference 2 is
+    // optional so it doesn't need one, but this photo is required in compare mode).
+    setupControlZone('testOnZone', testOnInput, 'testOnPreviewBox', 'testOnFileName');
+    (function wireTestOnEnableCheck() {
+      const zone = document.getElementById('testOnZone');
+      const origDrop = zone.ondrop;
+      zone.ondrop = (e) => { origDrop(e); updateAnalyzeEnabled(); };
+      const origChange = testOnInput.onchange;
+      testOnInput.onchange = () => { origChange(); updateAnalyzeEnabled(); };
+    })();
+
     // Purely a visibility toggle. A file already chosen in the hidden zone stays
     // selected and still gets uploaded on Analyze either way.
     document.getElementById('toggleCtrlBtn').onclick = () => {
@@ -1618,7 +1792,6 @@
     };
 
     // ===== Compare regions (per-region stats + SNR via /analyze_rois) =====
-    const addRoiBtn = document.getElementById('addRoiBtn');
     const clearAllRoiBtn = document.getElementById('clearAllRoiBtn');
     const mroiListEl = document.getElementById('mroiList');
 
@@ -1631,7 +1804,6 @@
       multiRois = [];
       renderMroiList();
       drawROICanvas();
-      scheduleRoiComparison();
     }
     clearAllRoiBtn.onclick = clearAllMultiRois;
 
@@ -1793,11 +1965,13 @@
       const MAX_W = 1600;
       const scale = Math.min(1, MAX_W / img.naturalWidth);
       const imgW = Math.round(img.naturalWidth * scale);
-      const imgH = Math.round(img.naturalHeight * scale);
-      // Normalized y/h are fractions of the diff region, not of the decoded PNG (which
-      // is taller -- footer band below it), so scale into decoded-PNG fractions first.
+      // The served PNG has the server's settings/stats footer band baked onto the
+      // bottom -- this summary composite doesn't want that (it has its own clean
+      // region-box + table layout below), so only the diff portion (pre-footer,
+      // per image_width/image_height from the server) is drawn, cropped out of the
+      // source image entirely rather than just scaled down with the footer visible.
       const diffSize = getDiffPixelSize(img.naturalWidth, img.naturalHeight);
-      const scaleY = diffSize.h / img.naturalHeight;
+      const imgH = Math.round(diffSize.h * scale);
 
       const cols = ['Region', 'Role', 'Mean', 'Peak', 'Std', 'Cov %', 'SNR(mean)', 'SNR(std)'];
       const rowH = 26, headerH = 30;
@@ -1811,10 +1985,13 @@
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#0b0c0d';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, imgW, imgH);
+      ctx.drawImage(img, 0, 0, img.naturalWidth, diffSize.h, 0, 0, imgW, imgH);
 
+      // Boxes are normalized fractions of the diff-only region, and the canvas above
+      // now only contains that same diff-only region (footer cropped out before the
+      // draw), so no extra footer-fraction scaling is needed here anymore.
       boxes.forEach(b => {
-        const bx = b.x * imgW, by = (b.y * scaleY) * imgH, bw = b.w * imgW, bh = (b.h * scaleY) * imgH;
+        const bx = b.x * imgW, by = b.y * imgH, bw = b.w * imgW, bh = b.h * imgH;
         ctx.strokeStyle = b.color;
         ctx.lineWidth = 2;
         ctx.strokeRect(bx, by, bw, bh);
@@ -1884,7 +2061,7 @@
       }
     };
 
-    // ===== Zoom to Signal ROI (full-resolution crop, no downscaling) =====
+    // ===== Show Zoomed Signal ROI (full-resolution crop, no downscaling) =====
     // Quick ROI wins if set (it IS the region of interest). Otherwise, with multiple
     // named Signal regions from Compare Regions, this shows one crop of their union
     // bounding box rather than a separate crop per region -- simpler, and matches the
@@ -1944,7 +2121,7 @@
       const visible = box.style.display !== 'none';
       if (visible) {
         box.style.display = 'none';
-        btn.textContent = 'Zoom to Signal ROI';
+        btn.textContent = 'Show Zoomed Signal ROI';
         return;
       }
       if (signalRoiCropRunId !== currentAnalysisData.runId) {
@@ -1952,7 +2129,7 @@
         btn.disabled = true;
         try {
           const dataUrl = await buildSignalRoiCropDataURL();
-          if (!dataUrl) { btn.disabled = false; btn.textContent = 'Zoom to Signal ROI'; return; }
+          if (!dataUrl) { btn.disabled = false; btn.textContent = 'Show Zoomed Signal ROI'; return; }
           document.getElementById('signalRoiImg').src = dataUrl;
           const isMulti = !currentAnalysisData.quickRoiBox &&
             (currentAnalysisData.compareRoiBoxes || []).filter(m => m.role !== 'background').length > 1;
@@ -1966,13 +2143,10 @@
       btn.textContent = 'Hide Zoomed ROI';
     };
 
-    // Add button is usable only while a box is drawn.
-    function updateAddRoiBtn() { addRoiBtn.disabled = !roiNorm; }
-
     function renderMroiList() {
       clearAllRoiBtn.style.display = multiRois.length ? '' : 'none';
       if (!multiRois.length) {
-        mroiListEl.innerHTML = '<div class="mroi-empty">No compare regions yet. Draw a box above, then add it here.</div>';
+        mroiListEl.innerHTML = '<div class="mroi-empty">No compare regions yet. Drag a box above to add one.</div>';
         return;
       }
       mroiListEl.innerHTML = '';
@@ -1988,7 +2162,7 @@
         name.className = 'mroi-name';
         name.type = 'text';
         name.value = m.name;
-        name.oninput = () => { m.name = name.value; drawROICanvas(); scheduleRoiComparison(); };
+        name.oninput = () => { m.name = name.value; drawROICanvas(); };
 
         const role = document.createElement('button');
         role.type = 'button';
@@ -1998,7 +2172,6 @@
           m.role = m.role === 'background' ? 'signal' : 'background';
           renderMroiList();
           drawROICanvas();
-          scheduleRoiComparison();
         };
 
         const del = document.createElement('button');
@@ -2006,48 +2179,27 @@
         del.className = 'mroi-del';
         del.innerHTML = '&times;';
         del.title = 'Remove region';
-        del.onclick = () => { multiRois.splice(i, 1); renderMroiList(); drawROICanvas(); scheduleRoiComparison(); };
+        del.onclick = () => { multiRois.splice(i, 1); renderMroiList(); drawROICanvas(); };
 
         item.append(sw, name, role, del);
         mroiListEl.appendChild(item);
       });
     }
 
-    addRoiBtn.onclick = () => {
-      if (!roiNorm) return;
+    // Appends a just-drawn box as a new named Compare Region. Called automatically
+    // from finalizeROI() right when a drag completes -- no separate "Add" click.
+    function addRoiAsRegion(box) {
       multiRois.push({
         name: `Region ${multiRois.length + 1}`,
         role: 'signal',
-        x: roiNorm.x, y: roiNorm.y, w: roiNorm.w, h: roiNorm.h,
+        x: box.x, y: box.y, w: box.w, h: box.h,
       });
       renderMroiList();
       drawROICanvas();
-      scheduleRoiComparison();
-    };
-
-    // One /analyze_rois request for the live in-card table. Same threshold
-    // slider and regions that Analyze will log, so the numbers match.
-    async function fetchRoiComparison() {
-      const fd = new FormData();
-      fd.append('reference', refInput.files[0]);
-      fd.append('test', testInput.files[0]);
-      fd.append('threshold', document.getElementById('threshSlider').value);
-      fd.append('rois', JSON.stringify(multiRois.map(m => ({
-        name: m.name, role: m.role,
-        x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
-      }))));
-      fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
-      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
-
-      const res = await fetch('/analyze_rois', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Server error (${res.status})`);
-      }
-      return res.json();
     }
 
-    // Fill a region-comparison table (either the in-card one or the results-view one).
+    // Fills a region-comparison table on a results page from an /analyze_rois-shaped
+    // payload (Single mode's own results.rois, echoed back from /analyze).
     function fillRoiTable(data, tbodyEl, noteEl) {
       const rows = data.rois || [];
       const bg = data.background || {};
@@ -2073,41 +2225,6 @@
           'Mark one quiet region as Background to fill them in.';
       }
     }
-
-    // Live region comparison: fires automatically whenever a region is added,
-    // renamed, deleted, or its role toggled — no button. DISPLAY ONLY (never
-    // writes CSV). The sequence counter drops stale responses from rapid edits.
-    let roiFetchSeq = 0;
-    async function refreshRoiComparison() {
-      const wrap = document.getElementById('mroiResultWrap');
-      const status = document.getElementById('mroiStatus');
-      if (!multiRois.length) {
-        wrap.style.display = 'none';
-        status.style.display = 'none';
-        return;
-      }
-      if (!(refInput.files.length && testInput.files.length)) {
-        wrap.style.display = 'none';
-        status.textContent = 'Upload both Reference and Test first. The table then updates automatically.';
-        status.style.display = '';
-        return;
-      }
-      const seq = ++roiFetchSeq;
-      status.textContent = 'Comparing regions…';
-      status.style.display = '';
-      try {
-        const data = await fetchRoiComparison();
-        if (seq !== roiFetchSeq) return;   // a newer edit superseded this one
-        fillRoiTable(data, document.getElementById('mroiTableBody'), document.getElementById('mroiTableNote'));
-        wrap.style.display = 'block';
-        status.style.display = 'none';
-      } catch (err) {
-        if (seq !== roiFetchSeq) return;
-        status.textContent = 'Region comparison failed: ' + err.message;
-        status.style.display = '';
-      }
-    }
-    const scheduleRoiComparison = debounce(refreshRoiComparison, 350);
 
     renderMroiList();       // show the empty-state hint on first load
 
@@ -2203,6 +2320,8 @@
 
     // ===== Run Analysis =====
     document.getElementById('analyzeBtn').onclick = async () => {
+      if (appMode === 'compare') { await runCompareAnalyze(); return; }
+
       statusEl.innerHTML = '<span class="spinner"></span> Processing Images...';
       analyzeBtn.disabled = true;
 
@@ -2380,7 +2499,7 @@
         // when this run actually has a quick ROI or a named Signal region to crop to.
         document.getElementById('signalRoiBox').style.display = 'none';
         const signalRoiBtn = document.getElementById('showSignalRoiBtn');
-        signalRoiBtn.textContent = 'Zoom to Signal ROI';
+        signalRoiBtn.textContent = 'Show Zoomed Signal ROI';
         signalRoiBtn.style.display = getSignalCropBox() ? '' : 'none';
 
         if (data.stats) {
@@ -2439,6 +2558,465 @@
       } finally {
         analyzeBtn.disabled = false;
         setTimeout(() => { statusEl.style.color = 'var(--muted)'; }, 3000);
+      }
+    };
+
+    // ===== Compare Analyze (Plasma On/Off) =====
+    // Runs /analyze twice against the same Reference -- once per Test photo -- using
+    // identical colormap/gain/threshold/noise_floor/align/denoise and the same drawn
+    // ROI/Compare Regions for both, so the OFF and ON diffs are directly comparable
+    // and line up on the same regions (this is the whole point of the mode: draw the
+    // ROI once, get both results scoped to it, instead of two separate single runs
+    // that might drift apart in settings or ROI placement).
+    let currentCompareData = null;
+
+    async function runCompareAnalyze() {
+      statusEl.innerHTML = '<span class="spinner"></span> Processing Images...';
+      analyzeBtn.disabled = true;
+
+      try {
+        await applyAutoValues();
+      } catch (err) {
+        statusEl.style.color = '#f0616d';
+        statusEl.textContent = `Auto failed: ${err.message}`;
+        analyzeBtn.disabled = false;
+        setTimeout(() => { statusEl.style.color = 'var(--muted)'; }, 3000);
+        return;
+      }
+
+      const effectiveRoi = getEffectiveRoiForAnalyze();
+      const roisPayload = multiRois.length ? JSON.stringify(multiRois.map(m => ({
+        name: m.name, role: m.role,
+        x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
+      }))) : '';
+
+      const sharedFields = {
+        gas_type: document.getElementById('gasType').value,
+        flow_rate: document.getElementById('flowRate').value,
+        plasma_condition: document.getElementById('plasmaCond').value,
+        CamType: document.getElementById('camType').value,
+        Focus: document.getElementById('focusSetting').value,
+        Iso: document.getElementById('iso').value,
+        Shutter: document.getElementById('shutter').value,
+        Aperture: document.getElementById('aperture').value,
+        NozDist: document.getElementById('nozDist').value,
+        Light: document.getElementById('lighting').value,
+        Notes: document.getElementById('notes').value,
+      };
+
+      function buildFd(testFile, plasmaStatus) {
+        const fd = new FormData();
+        fd.append('reference', refInput.files[0]);
+        fd.append('test', testFile);
+        fd.append('colormap', document.getElementById('colormapSel').value);
+        fd.append('gain', document.getElementById('gainSlider').value);
+        fd.append('threshold', document.getElementById('threshSlider').value);
+        fd.append('noise_floor', document.getElementById('floorSlider').value);
+        fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
+        fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
+        if (effectiveRoi) {
+          fd.append('roi_x', effectiveRoi.x.toFixed(6));
+          fd.append('roi_y', effectiveRoi.y.toFixed(6));
+          fd.append('roi_w', effectiveRoi.w.toFixed(6));
+          fd.append('roi_h', effectiveRoi.h.toFixed(6));
+        }
+        if (roisPayload) fd.append('rois', roisPayload);
+        fd.append('is_control', 'OFF');
+        fd.append('plasma_status', plasmaStatus);
+        Object.entries(sharedFields).forEach(([key, val]) => fd.append(key, val));
+        return fd;
+      }
+
+      try {
+        // Sequential, not parallel: run_id has 1-second resolution
+        // (datetime.now().strftime('%Y%m%d_%H%M%S')), so firing both requests at once
+        // risks the OFF and ON runs landing on the identical run_id and scrambling
+        // which roi_regions.csv/line_profiles.csv rows belong to which run once
+        // joined back by run_id. The short forced gap below guarantees they differ.
+        const startMs = Date.now();
+        const resOff = await fetch('/analyze', { method: 'POST', body: buildFd(testInput.files[0], 'OFF') });
+        if (!resOff.ok) throw new Error(`Plasma OFF run failed: server error ${resOff.status}`);
+        const dataOff = await resOff.json();
+
+        const elapsedMs = Date.now() - startMs;
+        if (elapsedMs < 1100) await new Promise(r => setTimeout(r, 1100 - elapsedMs));
+
+        const resOn = await fetch('/analyze', { method: 'POST', body: buildFd(testOnInput.files[0], 'ON') });
+        if (!resOn.ok) throw new Error(`Plasma ON run failed: server error ${resOn.status}`);
+        const dataOn = await resOn.json();
+
+        await renderCompareResults(dataOff, dataOn, effectiveRoi);
+
+        statusEl.textContent = 'Comparison complete.';
+        document.body.classList.add('compare-results-mode');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        statusEl.style.color = '#f0616d';
+        statusEl.textContent = `Error: ${err.message}`;
+      } finally {
+        analyzeBtn.disabled = false;
+        setTimeout(() => { statusEl.style.color = 'var(--muted)'; }, 3000);
+      }
+    }
+
+    function fmtRatio(onVal, offVal) {
+      if (typeof offVal !== 'number' || typeof onVal !== 'number' || offVal === 0) return '—';
+      return (onVal / offVal).toFixed(2) + '×';
+    }
+
+    // Named regions (+ the quick ROI box, if any) from the snapshot frozen on
+    // currentCompareData at render time -- same shape/colors as currentRoiBoxes()
+    // in Single mode, used to draw boxes on the real diff images below.
+    function currentCompareRoiBoxes() {
+      const d = currentCompareData;
+      if (!d) return [];
+      const boxes = [];
+      if (d.quickRoiBox) boxes.push({ ...d.quickRoiBox, color: '#ffffff', label: 'ROI' });
+      (d.compareRoiBoxes || []).forEach(m => {
+        boxes.push({ ...m, color: m.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR, label: m.name });
+      });
+      return boxes;
+    }
+
+    // One box-overlaid diff image per run (OFF and ON) -- kept as two separate
+    // images, not merged into a single side-by-side picture, so this matches how
+    // Output Images above already shows OFF/ON as separate labeled columns rather
+    // than one combined image that reads as harder to tell apart at a glance.
+    // Built once in renderCompareResults() and reused for both the on-screen
+    // Region Comparison images and the ZIP, so they're always the exact same files.
+    async function buildCompareRoiOverlayDataURLs() {
+      const d = currentCompareData;
+      if (!d) return { off: null, on: null };
+      const boxes = currentCompareRoiBoxes();
+      if (!boxes.length) return { off: null, on: null };
+
+      async function loadImg(base64) {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve; img.onerror = reject;
+          img.src = `data:image/png;base64,${base64}`;
+        });
+        return img;
+      }
+
+      async function buildOne(run) {
+        const img = await loadImg(run.color);
+        const MAX_W = 900;
+        const diffSize = { w: run.image_width || img.naturalWidth, h: run.image_height || img.naturalHeight };
+        const scale = Math.min(1, MAX_W / diffSize.w);
+        const w = Math.round(diffSize.w * scale);
+        const h = Math.round(diffSize.h * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0b0c0d';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, diffSize.w, diffSize.h, 0, 0, w, h);
+
+        boxes.forEach(b => {
+          const bx = b.x * w, by = b.y * h, bw = b.w * w, bh = b.h * h;
+          ctx.strokeStyle = b.color;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(bx, by, bw, bh);
+          ctx.font = '600 12px "IBM Plex Mono", monospace';
+          const tw = ctx.measureText(b.label).width;
+          ctx.fillStyle = b.color;
+          ctx.fillRect(bx, Math.max(0, by - 16), tw + 8, 16);
+          ctx.fillStyle = '#0b0c0d';
+          ctx.fillText(b.label, bx + 4, Math.max(11, by - 4));
+        });
+
+        return canvas.toDataURL('image/png');
+      }
+
+      const [off, on] = await Promise.all([buildOne(d.off), buildOne(d.on)]);
+      return { off, on };
+    }
+
+    async function renderCompareResults(dataOff, dataOn, effectiveRoi) {
+      currentCompareData = {
+        off: dataOff, on: dataOn, roi: effectiveRoi,
+        // Snapshot of exactly what was drawn for this pair of runs, frozen here so
+        // the ROI overlay image (on-screen and in the ZIP) always matches what was
+        // actually analyzed, even if boxes keep getting edited afterward.
+        quickRoiBox: roiNorm ? { ...roiNorm } : null,
+        compareRoiBoxes: multiRois.map(m => ({ name: m.name, role: m.role, x: m.x, y: m.y, w: m.w, h: m.h })),
+        roiOverlayOffDataUrl: null,
+        roiOverlayOnDataUrl: null,
+      };
+
+      document.getElementById('compareOffImg').src = `data:image/png;base64,${dataOff.color}`;
+      document.getElementById('compareOnImg').src = `data:image/png;base64,${dataOn.color}`;
+      document.getElementById('compareOffGrayImg').src = `data:image/png;base64,${dataOff.grayscale}`;
+      document.getElementById('compareOnGrayImg').src = `data:image/png;base64,${dataOn.grayscale}`;
+
+      const roiPanel = document.getElementById('compareRoiPanel');
+      const wholePanel = document.getElementById('compareWholePanel');
+      const roiOff = dataOff.rois && dataOff.rois.rois;
+      const roiOn = dataOn.rois && dataOn.rois.rois;
+
+      if (roiOff && roiOn && roiOff.length) {
+        // Built once here (see buildCompareRoiOverlayDataURLs) and reused for the
+        // ZIP -- falls back to the plain live-preview canvas only if a build
+        // somehow fails, so a panel is never left blank.
+        const overlays = await buildCompareRoiOverlayDataURLs();
+        currentCompareData.roiOverlayOffDataUrl = overlays.off;
+        currentCompareData.roiOverlayOnDataUrl = overlays.on;
+        document.getElementById('compareRoiOverlayOffImg').src = overlays.off || roiCanvas.toDataURL('image/png');
+        document.getElementById('compareRoiOverlayOnImg').src = overlays.on || roiCanvas.toDataURL('image/png');
+        const tbody = document.getElementById('compareRoiTableBody');
+        tbody.innerHTML = '';
+        roiOff.forEach((rOff, i) => {
+          const rOn = roiOn[i] || {};
+          const tr = document.createElement('tr');
+          if (rOff.role === 'background') tr.classList.add('is-bg');
+          tr.innerHTML = `
+            <td class="roi-name-cell">${rOff.name}</td>
+            <td><span class="role-tag ${rOff.role}">${rOff.role}</span></td>
+            <td class="grp-start">${rOff.mean}</td><td>${rOn.mean ?? '—'}</td><td>${fmtRatio(rOn.mean, rOff.mean)}</td>
+            <td class="grp-start">${rOff.peak}</td><td>${rOn.peak ?? '—'}</td><td>${fmtRatio(rOn.peak, rOff.peak)}</td>
+            <td class="grp-start">${rOff.coverage}%</td><td>${rOn.coverage ?? '—'}%</td><td>${fmtRatio(rOn.coverage, rOff.coverage)}</td>
+            <td class="grp-start">${rOff.snr_mean ?? '—'}</td><td>${rOn.snr_mean ?? '—'}</td><td>${fmtRatio(rOn.snr_mean, rOff.snr_mean)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+        roiPanel.style.display = 'flex';
+        wholePanel.style.display = 'none';
+      } else {
+        roiPanel.style.display = 'none';
+        const tbody = document.getElementById('compareWholeTableBody');
+        const sOff = dataOff.stats || {}, sOn = dataOn.stats || {};
+        tbody.innerHTML = `
+          <tr><td>Peak (p99)</td><td>${sOff.peak}</td><td>${sOn.peak}</td><td>${fmtRatio(sOn.peak, sOff.peak)}</td></tr>
+          <tr><td>Mean</td><td>${sOff.mean}</td><td>${sOn.mean}</td><td>${fmtRatio(sOn.mean, sOff.mean)}</td></tr>
+          <tr><td>Coverage %</td><td>${sOff.coverage}%</td><td>${sOn.coverage}%</td><td>${fmtRatio(sOn.coverage, sOff.coverage)}</td></tr>
+        `;
+        wholePanel.style.display = 'flex';
+      }
+    }
+
+    document.getElementById('compareBackBtn').onclick = () => {
+      document.body.classList.remove('compare-results-mode');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Side-by-side composite (OFF | ON images, footer cropped out same as ROI
+    // Summary, + the comparison table) for a single shareable downloadable file.
+    async function buildCompareSummaryDataURL() {
+      const d = currentCompareData;
+      if (!d) return null;
+
+      async function loadImg(base64) {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve; img.onerror = reject;
+          img.src = `data:image/png;base64,${base64}`;
+        });
+        return img;
+      }
+      const [imgOff, imgOn] = await Promise.all([loadImg(d.off.color), loadImg(d.on.color)]);
+
+      const MAX_COL_W = 900;
+      const diffOff = { w: d.off.image_width || imgOff.naturalWidth, h: d.off.image_height || imgOff.naturalHeight };
+      const diffOn = { w: d.on.image_width || imgOn.naturalWidth, h: d.on.image_height || imgOn.naturalHeight };
+      const scale = Math.min(1, MAX_COL_W / Math.max(diffOff.w, diffOn.w));
+      const colW = Math.round(Math.max(diffOff.w, diffOn.w) * scale);
+      const colHOff = Math.round(diffOff.h * scale);
+      const colHOn = Math.round(diffOn.h * scale);
+      const imgH = Math.max(colHOff, colHOn);
+      const gap = 16, labelH = 30;
+
+      const regions = (d.off.rois && d.off.rois.rois) || [];
+      const regionsOn = (d.on.rois && d.on.rois.rois) || [];
+      const cols = regions.length
+        ? ['Region', 'Role', 'Mean OFF', 'Mean ON', 'Mean ON/OFF', 'Peak OFF', 'Peak ON', 'Peak ON/OFF', 'Cov OFF', 'Cov ON', 'Cov ON/OFF', 'SNR OFF', 'SNR ON', 'SNR ON/OFF']
+        : ['Metric', 'OFF', 'ON', 'ON/OFF'];
+      const rowH = 24, headerH = 26;
+      const tableRows = regions.length ? regions.length : 3;
+      const tableH = headerH + rowH * tableRows + 14;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = colW * 2 + gap;
+      canvas.height = labelH + imgH + tableH;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0b0c0d';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = '700 15px "IBM Plex Mono", monospace';
+      ctx.fillStyle = '#9ea3aa';
+      ctx.fillText('PLASMA OFF', 4, 20);
+      ctx.fillStyle = MROI_SIGNAL_COLOR;
+      ctx.fillText('PLASMA ON', colW + gap + 4, 20);
+
+      ctx.drawImage(imgOff, 0, 0, diffOff.w, diffOff.h, 0, labelH, colW, colHOff);
+      ctx.drawImage(imgOn, 0, 0, diffOn.w, diffOn.h, colW + gap, labelH, colW, colHOn);
+
+      // Region/ROI box outlines + labels on top of both diff images, same color
+      // scheme used everywhere else (Compare Regions list, ROI overlay image) --
+      // this composite is downloadable/zipped, so it should show what was actually
+      // measured, not just the bare diffs.
+      const summaryBoxes = currentCompareRoiBoxes();
+      const drawSummaryBoxes = (offsetX, w, h) => {
+        summaryBoxes.forEach(b => {
+          const bx = offsetX + b.x * w, by = labelH + b.y * h, bw = b.w * w, bh = b.h * h;
+          ctx.strokeStyle = b.color;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(bx, by, bw, bh);
+          ctx.font = '600 12px "IBM Plex Mono", monospace';
+          const tw = ctx.measureText(b.label).width;
+          ctx.fillStyle = b.color;
+          ctx.fillRect(bx, Math.max(labelH, by - 16), tw + 8, 16);
+          ctx.fillStyle = '#0b0c0d';
+          ctx.fillText(b.label, bx + 4, Math.max(labelH + 11, by - 4));
+        });
+      };
+      drawSummaryBoxes(0, colW, colHOff);
+      drawSummaryBoxes(colW + gap, colW, colHOn);
+
+      let y = labelH + imgH;
+      const colWidth = canvas.width / cols.length;
+      ctx.fillStyle = '#15171a';
+      ctx.fillRect(0, y, canvas.width, tableH);
+      ctx.font = '700 13px "IBM Plex Mono", monospace';
+      ctx.fillStyle = '#ffffff';
+      cols.forEach((c, i) => ctx.fillText(c, i * colWidth + 8, y + 20));
+      y += headerH;
+      ctx.font = '13px "IBM Plex Mono", monospace';
+
+      if (regions.length) {
+        regions.forEach((r, i) => {
+          const rOn = regionsOn[i] || {};
+          if (i % 2 === 1) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, y, canvas.width, rowH); }
+          ctx.fillStyle = r.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR;
+          const vals = [
+            r.name, r.role,
+            r.mean, rOn.mean ?? '—', fmtRatio(rOn.mean, r.mean),
+            r.peak, rOn.peak ?? '—', fmtRatio(rOn.peak, r.peak),
+            r.coverage, rOn.coverage ?? '—', fmtRatio(rOn.coverage, r.coverage),
+            r.snr_mean ?? '—', rOn.snr_mean ?? '—', fmtRatio(rOn.snr_mean, r.snr_mean),
+          ];
+          vals.forEach((v, ci) => ctx.fillText(String(v), ci * colWidth + 8, y + 17));
+          y += rowH;
+        });
+      } else {
+        const sOff = d.off.stats || {}, sOn = d.on.stats || {};
+        const rows = [
+          ['Peak (p99)', sOff.peak, sOn.peak],
+          ['Mean', sOff.mean, sOn.mean],
+          ['Coverage %', `${sOff.coverage}%`, `${sOn.coverage}%`],
+        ];
+        rows.forEach(([label, off, on], i) => {
+          if (i % 2 === 1) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, y, canvas.width, rowH); }
+          ctx.fillStyle = '#ffffff';
+          const vals = [label, off, on, fmtRatio(typeof on === 'number' ? on : parseFloat(on), typeof off === 'number' ? off : parseFloat(off))];
+          vals.forEach((v, ci) => ctx.fillText(String(v), ci * colWidth + 8, y + 17));
+          y += rowH;
+        });
+      }
+
+      return canvas.toDataURL('image/png');
+    }
+
+    document.getElementById('dlCompareBtn').onclick = async () => {
+      if (!currentCompareData) return;
+      const btn = document.getElementById('dlCompareBtn');
+      const original = btn.textContent;
+      btn.textContent = 'Building...';
+      btn.disabled = true;
+      try {
+        const dataUrl = await buildCompareSummaryDataURL();
+        if (!dataUrl) return;
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `plasma_compare_${currentCompareData.off.run_id}_${currentCompareData.on.run_id}.png`;
+        a.click();
+      } finally {
+        btn.textContent = original;
+        btn.disabled = false;
+      }
+    };
+
+    // ===== Compare mode: Download ZIP (mirrors the Single Analysis ZIP, but with
+    // one row each for the OFF and ON runs sharing a single ROI/settings) =====
+    document.getElementById('dlCompareZipBtn').onclick = async () => {
+      if (!currentCompareData) return;
+      if (!window.JSZip) {
+        alert("JSZip library failed to load. Please check your internet connection.");
+        return;
+      }
+      const btn = document.getElementById('dlCompareZipBtn');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span> Zipping...';
+      btn.disabled = true;
+
+      try {
+        const zip = new JSZip();
+        const d = currentCompareData;
+        const off = d.off, on = d.on;
+
+        zip.file("diff_grayscale_plasma_off.png", off.grayscale, { base64: true });
+        zip.file("diff_grayscale_plasma_on.png", on.grayscale, { base64: true });
+        zip.file("diff_color_plasma_off.png", off.color, { base64: true });
+        zip.file("diff_color_plasma_on.png", on.color, { base64: true });
+
+        const summaryDataUrl = await buildCompareSummaryDataURL();
+        if (summaryDataUrl) {
+          zip.file("plasma_compare_summary.png", summaryDataUrl.split(',')[1], { base64: true });
+        }
+
+        const csvEsc = v => `"${(v === null || v === undefined ? '' : v).toString().replace(/"/g, '""')}"`;
+        const makeCsv = (header, rows) =>
+          [header.join(','), ...rows.map(r => r.map(csvEsc).join(','))].join('\n');
+
+        // Both rows came straight back from /analyze, which already logged them
+        // server-side under these exact run_ids -- this CSV is just a self-contained
+        // copy of those two rows for the ZIP, same columns as the server's runs.csv.
+        zip.file("runs.csv", makeCsv(
+          ["run_id", "datetime", "gas_type", "flow_rate", "plasma_status", "plasma_condition",
+           "is_control", "cam_type", "iso", "shutter", "aperture", "nozzle_dist",
+           "lighting", "notes", "ref_file", "test_file", "colormap", "gain", "noise_floor",
+           "threshold", "align", "peak", "mean", "coverage", "denoise"],
+          [off, on].map(r => [
+            r.run_id, r.datetime,
+            document.getElementById('gasType').value, document.getElementById('flowRate').value,
+            r === off ? 'OFF' : 'ON', document.getElementById('plasmaCond').value,
+            'OFF', document.getElementById('camType').value, document.getElementById('iso').value,
+            document.getElementById('shutter').value, document.getElementById('aperture').value,
+            document.getElementById('nozDist').value, document.getElementById('lighting').value,
+            document.getElementById('notes').value,
+            refInput.files[0].name, r === off ? testInput.files[0].name : testOnInput.files[0].name,
+            document.getElementById('colormapSel').value, document.getElementById('gainSlider').value,
+            document.getElementById('floorSlider').value, document.getElementById('threshSlider').value,
+            document.getElementById('alignToggle').checked ? 'ON' : 'OFF',
+            r.stats.peak, r.stats.mean, r.stats.coverage,
+            document.getElementById('denoiseToggle').checked ? 'ON' : 'OFF',
+          ])
+        ));
+
+        const roiRows = [];
+        (off.rois ? off.rois.rois : []).forEach(r =>
+          roiRows.push([off.run_id, r.name, r.role, r.mean, r.peak, r.std, r.coverage, r.snr_mean, r.snr_std]));
+        (on.rois ? on.rois.rois : []).forEach(r =>
+          roiRows.push([on.run_id, r.name, r.role, r.mean, r.peak, r.std, r.coverage, r.snr_mean, r.snr_std]));
+        zip.file("roi_regions.csv", makeCsv(
+          ["run_id", "roi_name", "role", "mean", "peak", "std", "coverage", "snr_mean", "snr_std"],
+          roiRows
+        ));
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `plasma_compare_${off.run_id}_${on.run_id}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("Error creating ZIP file: " + err.message);
+      } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
       }
     };
 

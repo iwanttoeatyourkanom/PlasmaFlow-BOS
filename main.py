@@ -217,7 +217,7 @@ def run_bos(
     # the "is this above the noise floor" comparison travels with the image itself
     # (ZIP, downloads, screenshots) instead of only living in the live UI.
     if control_peak is not None and control_mean is not None:
-        footer.append(f"Noise Baseline (Ref vs Ref2): Peak: {control_peak} | Mean: {control_mean}")
+        footer.append(f"Noise Baseline (Ref1 vs Ref2): Peak: {control_peak}, Mean: {control_mean}")
 
     final_gray = _stamp_footer(diff_vis, footer)
     final_color = _stamp_footer(diff_color, footer)
@@ -240,6 +240,8 @@ def run_bos(
         "RAW - no align, no denoise, no noise floor",
         f"Peak: {raw_peak} | Mean: {raw_mean}",
     ]
+    if control_peak is not None and control_mean is not None:
+        raw_footer.append(f"Noise Baseline (Ref1 vs Ref2): Peak: {control_peak}, Mean: {control_mean}")
     final_raw = _stamp_footer(raw_vis, raw_footer)
     _, raw_buf = cv2.imencode(".png", final_raw)
 
@@ -249,6 +251,8 @@ def run_bos(
         f"THRESHOLDED - threshold: {threshold} | {align_text} | {denoise_text}",
         f"Coverage: {coverage}%",
     ]
+    if control_peak is not None and control_mean is not None:
+        thresh_footer.append(f"Noise Baseline (Ref1 vs Ref2): Peak: {control_peak}, Mean: {control_mean}")
     final_thresh = _stamp_footer(thresh_vis, thresh_footer)
     _, thresh_buf = cv2.imencode(".png", final_thresh)
 
@@ -291,7 +295,10 @@ def _stamp_footer(img, lines):
             candidate = f"{current} | {seg}" if current else seg
             if current and cv2.getTextSize(candidate, font, font_scale, thickness)[0][0] + 40 > w:
                 rows.append(current)
-                current = seg
+                # Keep a leading "|" on the wrapped continuation so it visibly reads as
+                # "still part of the line above" instead of looking like a new, separate
+                # stat -- this is what was confusing when e.g. "Denoise: ON" wrapped alone.
+                current = f"| {seg}"
             else:
                 current = candidate
         rows.append(current)

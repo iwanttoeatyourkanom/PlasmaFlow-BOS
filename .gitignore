@@ -20,6 +20,10 @@ env/
 .DS_Store
 Thumbs.db
 
+# Node (frontend test deps)
+node_modules/
+package-lock.json
+
 # IDE
 .vscode/
 .idea/

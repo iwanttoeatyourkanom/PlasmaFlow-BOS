@@ -25,6 +25,11 @@ MEDIAN_KSIZE = 5
 # Fixed (not per-image min/max) diff->white scale, so brightness stays comparable across experiments.
 DISPLAY_FULL_SCALE = 64
 
+# The Raw view is a display-only "before" reference (never overlaid, cropped, or
+# exported), so its width is capped to keep responses light on big photos. The main
+# grayscale/color diffs stay full resolution; only this reference image is shrunk.
+RAW_DISPLAY_MAX_W = 2000
+
 # Three accumulating CSVs joined by run_id, minted once per Analyze press.
 RUNS_FILE = "runs.csv"
 RUNS_HEADER = [
@@ -57,9 +62,18 @@ CORNER_FRACTION = 0.15  # outer 15% x 15% of each corner, used only for alignmen
 
 
 def _phase_corr_shift(ref_patch: np.ndarray, test_patch: np.ndarray) -> tuple:
-    """(dx, dy) shift of test_patch relative to ref_patch via phase correlation."""
+    """(dx, dy) shift of test_patch relative to ref_patch via phase correlation.
+
+    Returns (0, 0) rather than raising when the patch is too small for a Hanning
+    window (needs >1 px per side) or when phaseCorrelate returns a non-finite value
+    on a flat/degenerate patch, so alignment never crashes the request.
+    """
+    if ref_patch.shape[0] < 2 or ref_patch.shape[1] < 2:
+        return 0.0, 0.0
     win = cv2.createHanningWindow((ref_patch.shape[1], ref_patch.shape[0]), cv2.CV_32F)
     (dx, dy), _ = cv2.phaseCorrelate(ref_patch.astype(np.float32), test_patch.astype(np.float32), win)
+    if not (np.isfinite(dx) and np.isfinite(dy)):
+        return 0.0, 0.0
     return dx, dy
 
 
@@ -69,9 +83,14 @@ def _estimate_shift(ref_gray: np.ndarray, test_gray: np.ndarray) -> dict:
     The jet's own real signal lives away from the corners, so corner-only patches avoid
     letting the BOS signal bias the shift estimate (and then get subtracted out as noise).
     Returns the median (dx, dy) across corners plus each corner's own estimate for transparency.
+    Images too small to carve out a real corner patch (any side < 4 px) skip alignment.
     """
     H, W = ref_gray.shape
-    ch, cw = max(1, int(H * CORNER_FRACTION)), max(1, int(W * CORNER_FRACTION))
+    if H < 4 or W < 4:
+        return {"dx": 0.0, "dy": 0.0, "corners": {}}
+    # At least 2 px per side (phaseCorrelate needs > 1), never larger than the image.
+    ch = min(H, max(2, int(H * CORNER_FRACTION)))
+    cw = min(W, max(2, int(W * CORNER_FRACTION)))
     corners = {
         "top_left": (slice(0, ch), slice(0, cw)),
         "top_right": (slice(0, ch), slice(W - cw, W)),
@@ -160,8 +179,8 @@ def run_bos(
     denoise: bool = False,
     control_peak: float = None,
     control_mean: float = None,
-) -> dict:
-    """Compute the BOS diff and return rendered images plus stats.
+) -> tuple:
+    """Compute the BOS diff and return (rendered images + stats dict, diff_full).
 
     Stats always come from the raw diff (after align/denoise preprocessing, if enabled), never
     the display-adjusted render (colormap/gain/noise_floor).
@@ -172,6 +191,10 @@ def run_bos(
     peak/mean/coverage stats are computed from: if given, they're computed from just that
     region of the diff via _crop_diff, same numbers as before, just no longer tied to what
     the image shows.
+
+    diff_full (the full-frame diff array, after this call's align/denoise) is returned
+    alongside the dict so callers that also need to sample it (e.g. /analyze's ROI list /
+    line profile) can reuse it instead of paying for a second identical decode+align+diff.
     """
     diff_full, shift_info = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
     img_h, img_w = diff_full.shape  # pre-footer size, in pixels -- the served PNGs are taller than
@@ -227,15 +250,28 @@ def run_bos(
     # Raw view: the genuinely untouched difference -- no align, no denoise, no noise
     # floor/gain -- regardless of what the align/denoise toggles above are set to. This
     # is a fixed "before" reference so align/denoise's effect can actually be seen by
-    # comparing it against the main grayscale/color/thresholded views. Recomputed from
-    # scratch (full frame, same as diff_full above) rather than reusing `diff_full`,
-    # since `diff_full` already has align/denoise baked in when those are on. Stats
+    # comparing it against the main grayscale/color/thresholded views. Needs a fresh
+    # align=False/denoise=False computation whenever this run's own align/denoise were
+    # on (since diff_full then has those baked in) -- but if they were already both off,
+    # diff_full already IS that computation, so it's reused instead (see below). Stats
     # still scoped to roi_norm, same as the main stats above; the image itself is full.
-    diff_raw_full, _ = compute_diff(ref_bytes, test_bytes, None, align=False, denoise=False)
+    if align or denoise:
+        diff_raw_full, _ = compute_diff(ref_bytes, test_bytes, None, align=False, denoise=False)
+    else:
+        # This run's own align/denoise were already both off, so diff_full above (computed
+        # with align=False, denoise=False) is already byte-identical to what a fresh
+        # align=False/denoise=False call would produce -- reuse it instead of decoding and
+        # diffing the same two images a second time.
+        diff_raw_full = diff_full
     raw_stats_diff = _crop_diff(diff_raw_full, roi_norm) if roi_norm is not None else diff_raw_full
     raw_peak = int(round(float(np.percentile(raw_stats_diff, 99))))
     raw_mean = round(float(raw_stats_diff.mean()), 2)
     raw_vis = np.clip(diff_raw_full.astype(np.float32) * scale, 0, 255).astype(np.uint8)
+    # Shrink the reference image for display (stats above already came from full res).
+    if raw_vis.shape[1] > RAW_DISPLAY_MAX_W:
+        rs = RAW_DISPLAY_MAX_W / raw_vis.shape[1]
+        raw_vis = cv2.resize(raw_vis, (RAW_DISPLAY_MAX_W, max(1, int(round(raw_vis.shape[0] * rs)))),
+                             interpolation=cv2.INTER_AREA)
     raw_footer = [
         "RAW - no align, no denoise, no noise floor",
         f"Peak: {raw_peak} | Mean: {raw_mean}",
@@ -256,7 +292,7 @@ def run_bos(
     final_thresh = _stamp_footer(thresh_vis, thresh_footer)
     _, thresh_buf = cv2.imencode(".png", final_thresh)
 
-    return {
+    result = {
         "grayscale": base64.b64encode(gray_buf).decode(),
         "color": base64.b64encode(color_buf).decode(),
         "raw": base64.b64encode(raw_buf).decode(),
@@ -270,6 +306,7 @@ def run_bos(
         "image_width": img_w,
         "image_height": img_h,
     }
+    return result, diff_full
 
 
 def _stamp_footer(img, lines):
@@ -369,7 +406,7 @@ async def analyze(
     roi_norm = (roi_x, roi_y, roi_w, roi_h) if roi_w > 0 and roi_h > 0 else None
 
     try:
-        result = run_bos(
+        result, diff_full = run_bos(
             ref_bytes, test_bytes, colormap, gain=gain, threshold=threshold,
             noise_floor=noise_floor, roi_norm=roi_norm, align=align, denoise=denoise,
             control_peak=control_peak, control_mean=control_mean,
@@ -377,12 +414,13 @@ async def analyze(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # ROI list / line profile sample the full-image diff, independent of the quick-ROI crop above.
+    # ROI list / line profile sample the full-image diff -- reuses the diff_full run_bos
+    # already computed above (same ref/test/align/denoise) instead of recomputing it a
+    # second time, which used to also mean re-running the 4-corner phase-correlation
+    # alignment a second time whenever Align was on.
     roi_result = None
     line_result = None
     if rois or line:
-        diff_full, _ = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
-
         if rois:
             try:
                 roi_list = json.loads(rois)
@@ -416,7 +454,13 @@ async def analyze(
 
     # --- Commit this run to the three linked CSVs (one shared run_id) ---
     now = datetime.now()
-    run_id = now.strftime("%Y%m%d_%H%M%S")
+    # Microsecond resolution, not just seconds: two /analyze calls landing in the same
+    # second (e.g. Compare mode's OFF/ON pair, or the optional Noise Baseline run) used to
+    # be able to mint the identical run_id, silently scrambling which roi_regions.csv/
+    # line_profiles.csv rows belonged to which run once joined back by run_id. The frontend
+    # previously worked around this by force-sleeping >=1.1s between requests; this makes
+    # that workaround unnecessary since collisions are no longer possible in practice.
+    run_id = now.strftime("%Y%m%d_%H%M%S_%f")
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
     _append_csv(RUNS_FILE, RUNS_HEADER, [[
@@ -578,7 +622,13 @@ def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
     below is a separate, always-on smoothing of the *sampled curve* for a readable
     peak/width, not of the 2D image.
 
-    width_px is FWHM-style: span around the peak where the smoothed value stays above baseline + (peak - baseline)/2 (baseline = 10th pct). Raises ValueError on a zero-length line.
+    Returns everything the chart needs so the drawing and the reported numbers can't
+    drift apart: the peak value AND its sample index, the half-max level, and the
+    width band's low/high sample indices. peak is the height of the smoothed curve at
+    the detected peak (this is where the marker sits), not a separate percentile, so
+    the "peak N" label always matches the dot. width_px is FWHM-style: the span around
+    the peak where the smoothed value stays above baseline + (peak - baseline)/2
+    (baseline = 10th percentile). Raises ValueError on a zero-length line.
     """
     cx0, cy0, cx1, cy1 = (max(0.0, min(1.0, v)) for v in (x0, y0, x1, y1))
     if cx0 == cx1 and cy0 == cy1:
@@ -610,8 +660,9 @@ def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
     inner = smoothed[margin:n - margin]
     p_idx = margin + int(np.argmax(inner)) if inner.size else min(margin, n - 1)
 
+    peak_val = float(smoothed[p_idx])
     baseline = float(np.sort(smoothed)[int(0.1 * (n - 1))])
-    half_max = baseline + (float(smoothed[p_idx]) - baseline) / 2.0
+    half_max = baseline + (peak_val - baseline) / 2.0
     w_lo = w_hi = p_idx
     while w_lo > 0 and smoothed[w_lo - 1] >= half_max:
         w_lo -= 1
@@ -622,11 +673,17 @@ def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
     return {
         "values": [round(float(v), 1) for v in sampled],
         "smoothed": [round(float(v), 1) for v in smoothed],
-        "peak": int(round(float(np.percentile(sampled, 99)))),
+        "peak": int(round(peak_val)),
         "mean": round(float(sampled.mean()), 2),
         "length_px": length_px,
         "samples": samples,
         "width_px": width_px,
+        # Chart-drawing anchors so the frontend renders exactly what was measured.
+        "peak_index": p_idx,
+        "baseline": round(baseline, 1),
+        "half_max": round(half_max, 1),
+        "width_lo": w_lo,
+        "width_hi": w_hi,
     }
 
 

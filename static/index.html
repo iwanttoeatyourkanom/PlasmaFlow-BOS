@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#090b0d" />
   <title>PlasmaFlow-BOS</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6e7e9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2.5'/%3E%3Cpath d='M3 13c3 0 3-5 6-5s3 8 6 8 3-5 6-5'/%3E%3C/svg%3E" />
+  <meta name="description" content="Background-oriented schlieren tool for visualizing gas jet and plasma actuator flow." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,6 +39,7 @@
       --sans: 'IBM Plex Sans', system-ui, sans-serif;
     }
 
+    html { scroll-behavior: smooth; }
     body {
       font-family: var(--sans);
       background: var(--bg);
@@ -43,6 +47,19 @@
       min-height: 100vh;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Keyboard focus ring (mouse clicks stay clean, keyboard users get a clear ring). */
+    :focus { outline: none; }
+    :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 3px; }
+    a:focus-visible, button:focus-visible, input:focus-visible,
+    select:focus-visible, canvas:focus-visible { outline: 2px solid #7cc4ff; outline-offset: 2px; }
+
+    /* Respect users who prefer less motion. */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
     }
 
     ::selection { background: rgba(255,255,255,0.16); color: #fff; }
@@ -59,8 +76,8 @@
       border: 1px solid var(--border);
       display: grid; place-items: center;
     }
-    .brand-mark svg { width: 22px; height: 22px; color: var(--text); }
-    .brand h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; color: #fff; }
+    .brand h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
+    .brand h1 .brand-accent { color: var(--muted); font-weight: 500; margin-left: 1px; }
     .brand .sub { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); letter-spacing: 0.01em; margin-top: 2px; }
     .header-tag {
       font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
@@ -80,6 +97,14 @@
     }
 
     .card-header { margin-bottom: 1.3rem; display: flex; align-items: flex-start; gap: 0.85rem; }
+    /* Collapsible cards (optional metadata) */
+    .card.collapsible > .card-header { cursor: pointer; }
+    .card-collapse { margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: 7px; background: var(--inset); border: 1px solid var(--border); color: var(--muted); cursor: pointer; display: grid; place-items: center; transition: border-color .18s, color .18s; }
+    .card-collapse:hover { border-color: var(--border-hover); color: var(--text); }
+    .card-collapse svg { width: 15px; height: 15px; transition: transform .2s; }
+    .card.collapsed .card-collapse svg { transform: rotate(-90deg); }
+    .card.collapsed > :not(.card-header) { display: none; }
+    .card.collapsed > .card-header { margin-bottom: 0; }
     .card-num {
       font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--muted);
       width: 27px; height: 27px; flex: none; border-radius: 7px; display: grid; place-items: center;
@@ -89,7 +114,6 @@
     .card-title { font-size: 0.95rem; font-weight: 600; letter-spacing: 0.01em; color: var(--text); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .card-title .opt { font-family: var(--mono); font-size: 0.66rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
     .card-desc { font-size: 0.76rem; color: var(--muted); margin-top: 0.3rem; }
-    .card-header .header-spacer { flex: 1; }
 
     .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
     .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; }
@@ -173,9 +197,54 @@
 
     /* ===== ROI ===== */
     .roi-placeholder { background: var(--inset); border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 2.2rem; text-align: center; color: var(--faint); font-size: 0.82rem; font-family: var(--mono); }
-    #roiCanvas, #lineCanvas { display: none; max-width: 420px; max-height: 360px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 1px solid var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
-    #roiCanvas.has-image, #lineCanvas.has-image { display: block; }
+    #roiCanvas, #lineCanvas, #calibCanvas { display: none; max-width: 420px; max-height: 360px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 1px solid var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
+    #roiCanvas.has-image, #lineCanvas.has-image, #calibCanvas.has-image { display: block; }
     #roiCanvas.has-roi { border-color: var(--text); }
+
+    /* ===== Canvas zoom-to-draw ===== */
+    .canvas-frame { position: relative; }
+    .canvas-zoom-btn {
+      display: none; position: absolute; top: 0.6rem; right: 0.6rem; z-index: 2;
+      width: 32px; height: 32px; border-radius: 7px; background: var(--card-2); border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer; align-items: center; justify-content: center;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .canvas-zoom-btn svg { width: 16px; height: 16px; }
+    .canvas-zoom-btn:hover { border-color: var(--border-hover); color: var(--text); background: var(--inset); }
+    #roiCanvas.has-image ~ .canvas-zoom-btn,
+    #lineCanvas.has-image ~ .canvas-zoom-btn,
+    #calibCanvas.has-image ~ .canvas-zoom-btn { display: flex; }
+    .canvas-zoom-modal {
+      display: none; position: fixed; z-index: 9999; inset: 0; padding: 1.5rem;
+      background: rgba(4,6,8,0.85); backdrop-filter: blur(7px);
+      align-items: center; justify-content: center;
+    }
+    .canvas-zoom-modal.open { display: flex; }
+    .canvas-zoom-dialog {
+      width: 97vw; height: 94vh; max-width: 1900px; display: flex; flex-direction: column;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      box-shadow: 0 28px 70px rgba(0,0,0,0.6); overflow: hidden;
+    }
+    .canvas-zoom-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 1rem 1.3rem; border-bottom: 1px solid var(--border); flex: none;
+    }
+    .canvas-zoom-head span { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .canvas-zoom-body { flex: 1; min-height: 0; padding: 1.3rem; display: flex; align-items: center; justify-content: center; overflow: auto; }
+    /* Actual display size is computed and set inline (canvas.style.width/height) by
+       fitZoomedCanvas() in JS, since max-width/max-height alone can only shrink a
+       canvas, never grow one that's already smaller than the available space. The
+       base #roiCanvas/#lineCanvas/#calibCanvas rule caps max-width at 420px via an
+       ID selector, which would otherwise still clip the upscaled size -- lift that
+       cap here (important needed since ID specificity would otherwise win). */
+    .canvas-zoom-body canvas { margin: 0; max-width: none !important; max-height: none !important; }
+    /* Measure zoom: a plain <img> with no explicit width/height auto-preserves
+       aspect ratio under max-width+max-height alone, so this is enough (unlike
+       the canvas case above, no JS-computed inline size needed). */
+    .canvas-zoom-body .img-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; display: block; }
+    .canvas-zoom-foot { flex: none; padding: 0 1.3rem 1.3rem; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+    .canvas-zoom-foot .roi-info { margin-top: 0; }
+    .canvas-zoom-foot .calib-row { margin-top: 0; }
     .roi-info { margin-top: 0.85rem; font-size: 0.76rem; color: var(--muted); text-align: center; font-family: var(--mono); }
     .roi-ratios { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 1.1rem; }
     .roi-ratios-label { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 0.3rem; }
@@ -221,14 +290,20 @@
     .roi-overlay-img { display: block; max-width: 480px; max-height: 400px; width: auto; height: auto; object-fit: contain; margin: 0 auto 1.1rem; border-radius: var(--radius-md); border: 1px solid var(--border); }
 
     /* ===== Line Profile controls (its own card, separate from ROI) ===== */
-    #lineChartWrap, #lineChartResultWrap { width: 100%; overflow-x: auto; }
-    #lineChart, #lineChartResult { width: 100%; max-width: 100%; height: auto; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); display: block; }
+    #lineChartWrap, #lineChartResultWrap, #compareLineChartOffWrap, #compareLineChartOnWrap { width: 100%; overflow-x: auto; }
+    #lineChart, #lineChartResult, #compareLineChartOff, #compareLineChartOn { width: 100%; max-width: 100%; height: auto; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); display: block; }
     .line-hint { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); margin-top: 0.9rem; line-height: 1.5; }
     /* Inline line-profile chart shown under the controls (not a full-screen view). */
     #lineChartInline { margin-top: 1.3rem; padding-top: 1.3rem; border-top: 1px solid var(--border); }
     .line-inline-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
     .line-inline-title { font-size: 0.95rem; font-weight: 600; color: var(--text); }
     .line-inline-head .hint { color: var(--faint); font-size: 0.74rem; font-family: var(--mono); }
+
+    /* ===== Scale calibration ===== */
+    .calib-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.1rem; justify-content: center; }
+    .calib-row label { font-size: 0.74rem; font-weight: 500; color: var(--muted); font-family: var(--mono); }
+    .calib-row .form-control { width: 7rem; }
+    .calib-unit { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); }
 
     /* ===== Settings sub-sections ===== */
     .settings-section + .settings-section { margin-top: 1.6rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
@@ -263,9 +338,14 @@
     button#analyzeBtn:disabled { background: var(--card-2); color: var(--faint); cursor: not-allowed; }
     #status { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); text-align: center; }
 
+    /* ===== Footer ===== */
+    .app-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; padding: 2.4rem 0 1rem; margin-top: 1rem; border-top: 1px solid var(--border); color: var(--faint); font-family: var(--mono); font-size: 0.72rem; }
+    .app-footer .ft-name { color: var(--muted); font-weight: 600; }
+    .app-footer .ft-sep { color: var(--border-hover); }
+
     /* ===== Mode toggle ===== */
-    .mode-toggle { display: inline-flex; gap: 0.3rem; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.3rem; margin-top: 1rem; }
-    .mode-btn { background: transparent; color: var(--muted); border: none; border-radius: var(--radius-sm); padding: 0.55rem 1.1rem; font-size: 0.82rem; font-weight: 600; font-family: var(--sans); cursor: pointer; transition: .18s; }
+    .mode-toggle { display: inline-flex; align-items: stretch; gap: 0.3rem; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 3px; height: 44px; box-sizing: border-box; }
+    .mode-btn { background: transparent; color: var(--muted); border: none; border-radius: var(--radius-sm); padding: 0 1.1rem; font-size: 0.82rem; font-weight: 600; font-family: var(--sans); cursor: pointer; transition: .18s; display: inline-flex; align-items: center; justify-content: center; }
     .mode-btn:hover { color: var(--text); }
     .mode-btn.active { background: var(--text); color: #0b0c0d; }
 
@@ -323,6 +403,9 @@
     .img-wrap { position: relative; max-width: 100%; }
     .roi-box-layer { position: absolute; left: 0; top: 0; pointer-events: none; display: none; }
     .roi-box-layer.visible { display: block; }
+    .measure-layer { position: absolute; left: 0; top: 0; pointer-events: none; }
+    .measure-layer.active { pointer-events: auto; cursor: crosshair; }
+    .measure-layer svg { width: 100%; height: 100%; display: block; }
     .roi-box-item { position: absolute; border: 2px solid; box-sizing: border-box; }
     .roi-box-item .roi-box-label { position: absolute; top: -1.35em; left: -2px; font-family: var(--mono); font-size: 0.68rem; font-weight: 600; padding: 0.1em 0.4em; white-space: nowrap; color: #0b0c0d; }
     .image-title { font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-family: var(--mono); align-self: flex-start; }
@@ -349,12 +432,15 @@
     .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.25); border-top-color: currentColor; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ===== Capture Guide (trigger button + popup modal) ===== */
+    /* Header right side: Guide button + mode toggle */
+    .header-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* ===== User guide (trigger button + popup modal) ===== */
     .cg-trigger {
-      flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 0.5rem;
+      flex: none; display: inline-flex; align-items: center; gap: 0.5rem;
       font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.02em;
       color: var(--muted); background: var(--inset); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 0.4rem 0.7rem; cursor: pointer;
+      border-radius: var(--radius-sm); padding: 0 0.9rem; cursor: pointer; height: 44px; box-sizing: border-box;
       transition: border-color .18s, color .18s, background .18s;
     }
     .cg-trigger:hover { border-color: var(--border-hover); color: var(--text); background: var(--card-2); }
@@ -373,7 +459,7 @@
     .cg-modal.open { display: flex; animation: cgFade .18s ease; }
     @keyframes cgFade { from { opacity: 0; } to { opacity: 1; } }
     .cg-dialog {
-      width: 100%; max-width: 640px; max-height: 86vh; display: flex; flex-direction: column;
+      width: 100%; max-width: 760px; max-height: 88vh; display: flex; flex-direction: column;
       background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
       box-shadow: 0 28px 70px rgba(0,0,0,0.6); overflow: hidden; animation: cgPop .2s cubic-bezier(.2,.8,.3,1);
     }
@@ -396,8 +482,10 @@
       transition: border-color .18s, color .18s, background .18s;
     }
     .cg-dialog-close:hover { border-color: var(--border-hover); color: var(--text); background: var(--card-2); }
+    /* Body is the right content pane; the sidebar sits to its left inside .cg-main. */
+    .cg-main { display: flex; flex: 1; min-height: 0; }
     .cg-body {
-      padding: 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 1.3rem; overflow-y: auto;
+      flex: 1; min-width: 0; padding: 1.6rem 1.8rem; display: flex; flex-direction: column; gap: 0; overflow-y: auto;
       scrollbar-width: thin; scrollbar-color: var(--border) transparent;
     }
     .cg-body::-webkit-scrollbar { width: 6px; }
@@ -405,14 +493,39 @@
     .cg-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
     .cg-body::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
     .cg-group h3 {
-      font-family: var(--mono); font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--text); margin-bottom: 0.6rem;
-      display: flex; align-items: center; gap: 0.5rem;
+      font-family: var(--mono); font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.09em; color: var(--text); margin-bottom: 0.85rem;
     }
-    .cg-group h3::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: var(--accent); flex: none; }
-    .cg-group ul { list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+    .cg-group + .cg-group { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .cg-group ul { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
     .cg-group li { position: relative; padding-left: 1.15rem; font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
     .cg-group li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 5px; height: 5px; border-radius: 2px; background: var(--faint); }
+    .cg-group li strong { color: var(--text); font-weight: 600; }
+    .cg-group ol { list-style: none; counter-reset: cg; display: flex; flex-direction: column; gap: 0.55rem; }
+    .cg-group ol li { counter-increment: cg; padding-left: 1.75rem; }
+    .cg-group ol li::before { content: counter(cg); top: 0; left: 0; width: 1.2rem; height: 1.2rem; border-radius: 5px; background: var(--inset); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 0.64rem; font-weight: 600; display: grid; place-items: center; }
+    /* Left sidebar nav (like a settings page): vertical list, active item highlighted. */
+    .cg-side {
+      width: 188px; flex: none; border-right: 1px solid var(--border);
+      padding: 1.1rem 0.7rem; display: flex; flex-direction: column; gap: 0.15rem; overflow-y: auto;
+      background: var(--inset);
+    }
+    .cg-side-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); padding: 0.2rem 0.65rem 0.55rem; }
+    .cg-tab {
+      display: flex; align-items: center; gap: 0.65rem; width: 100%; text-align: left;
+      font-family: var(--sans); font-size: 0.83rem; font-weight: 500; color: var(--muted);
+      background: transparent; border: 1px solid transparent; border-radius: 8px;
+      padding: 0.5rem 0.65rem; cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+    }
+    .cg-tab svg { width: 16px; height: 16px; flex: none; opacity: 0.9; }
+    .cg-tab:hover { background: var(--card); color: var(--text); }
+    .cg-tab.active { background: var(--card-2); color: #fff; border-color: var(--border); }
+    @media (max-width: 640px) {
+      .cg-main { flex-direction: column; }
+      .cg-side { width: auto; flex-direction: row; gap: 0.35rem; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 0.7rem 0.9rem; }
+      .cg-side-label { display: none; }
+      .cg-tab { width: auto; white-space: nowrap; }
+    }
   </style>
 </head>
 <body>
@@ -430,14 +543,21 @@
   <div id="uploadView">
     <div class="app-header">
       <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
         <div>
-          <h1>PlasmaFlow-BOS</h1>
-          <div class="sub">BOS Visualization of Gas-Jet and Plasma Actuator-Induced Flow · by keng</div>
+          <h1>PlasmaFlow<span class="brand-accent">BOS</span></h1>
+          <div class="sub">BOS diff imaging & flow analysis for gas jets and plasma actuators</div>
         </div>
       </div>
-      <div class="mode-toggle" id="modeToggle">
-        <button type="button" class="mode-btn active" data-mode="single">Single Analysis</button>
-        <button type="button" class="mode-btn" data-mode="compare">Jet Plasma On/Off Compare</button>
+      <div class="header-actions">
+        <button type="button" class="cg-trigger" id="captureGuideOpen" aria-haspopup="dialog">
+          <span class="cg-i" aria-hidden="true">?</span>
+          <span>Guide</span>
+        </button>
+        <div class="mode-toggle" id="modeToggle">
+          <button type="button" class="mode-btn active" data-mode="single">Single Analysis</button>
+          <button type="button" class="mode-btn" data-mode="compare">Plasma On/Off Compare</button>
+        </div>
       </div>
     </div>
 
@@ -450,11 +570,6 @@
             <h2 class="card-title">Image Input</h2>
             <div class="card-desc" id="imageInputDesc">Upload two photos: flow OFF (reference) and flow ON (test).</div>
           </div>
-          <div class="header-spacer"></div>
-          <button type="button" class="cg-trigger" id="captureGuideOpen" aria-haspopup="dialog">
-            <span class="cg-i" aria-hidden="true">i</span>
-            <span>Capture Guide</span>
-          </button>
         </div>
 
         <div class="grid-2">
@@ -478,8 +593,7 @@
           <input type="file" id="testOnInput" accept="image/*" />
         </div>
         <div class="input-desc" id="compareModeHint" style="display:none; margin-top: 0.6rem;">
-          Compare mode: same Reference (flow OFF) diffed against two Test shots -- Plasma OFF and Plasma ON -- using
-          the same ROI/settings for both, so the two runs line up directly.
+          Compare mode diffs one Reference against two Tests, plasma off and on, with the same ROI and settings. The two runs line up directly.
         </div>
         <div class="form-group" style="margin-top: 1.3rem;">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
@@ -529,7 +643,7 @@
               <div class="slider-header"><label>Noise floor</label><input type="number" id="floorVal" class="slider-val slider-val-input" min="0" max="60" step="1" value="0" /></div>
               <input type="range" id="floorSlider" min="0" max="60" step="1" value="0" />
               <button id="autoFloorBtn" class="btn-secondary btn-auto">Auto</button>
-              <div class="input-desc">Hides pixels below this level so weak background noise goes black. Auto locks the slider and picks a value just above the noise when you press Analyze; click Auto again to set it yourself.</div>
+              <div class="input-desc">Hides pixels below this level so weak background noise goes black. Auto locks the slider and picks a value just above the noise when you press Analyze, scoped to a Background-tagged Compare Region if you've added one (otherwise the whole image); click Auto again to set it yourself.</div>
             </div>
           </div>
         </div>
@@ -539,10 +653,10 @@
           <div class="settings-subhead">Measurement <span class="tag">(changes the saved numbers)</span></div>
           <div class="grid-2">
             <div class="form-group">
-              <div class="slider-header"><label>Coverage Threshold</label><input type="number" id="threshVal" class="slider-val slider-val-input" min="1" max="80" step="1" value="1" /></div>
-              <input type="range" id="threshSlider" min="1" max="80" step="1" value="1" />
+              <div class="slider-header"><label>Coverage Threshold</label><input type="number" id="threshVal" class="slider-val slider-val-input" min="1" max="80" step="1" value="12" /></div>
+              <input type="range" id="threshSlider" min="1" max="80" step="1" value="12" />
               <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
-              <div class="input-desc">Counts as "flow" if diff &gt; threshold (strict). Higher = stricter. Affects Coverage % and the region table. Auto suggests a value (best on mostly-background areas).</div>
+              <div class="input-desc">Counts as "flow" if diff &gt; threshold (strict). Higher = stricter. Affects Coverage % and the region table. Auto suggests a value scoped to a Background-tagged Compare Region if you've added one (otherwise the whole image) -- never the signal box, since that would compute "noise" from the jet itself.</div>
             </div>
             <div class="form-group">
               <label for="alignToggle">Align Images</label>
@@ -560,7 +674,7 @@
                 <span class="toggle-track"></span>
                 <span id="denoiseState" class="slider-val">On</span>
               </label>
-              <div class="input-desc">Applies a median blur (5x5) to the difference image before computing Peak/Mean/Coverage, to knock down per-pixel sensor/speckle noise. This is separate from Noise Floor below: that only clips the display, this actually smooths the measured signal.</div>
+              <div class="input-desc">Light blur on the diff before measuring, to cut per-pixel sensor noise. Unlike Noise floor, which only changes the display, this changes the saved numbers.</div>
             </div>
           </div>
         </div>
@@ -587,7 +701,12 @@
         </div>
 
         <div id="roiPlaceholder" class="roi-placeholder">Upload both photos first, the difference preview shows up here.</div>
-        <canvas id="roiCanvas"></canvas>
+        <div class="canvas-frame">
+          <canvas id="roiCanvas"></canvas>
+          <button type="button" class="canvas-zoom-btn" data-target="roiCanvas" data-title="ROI Selection" aria-label="Expand to draw">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          </button>
+        </div>
         <div id="roiBgStatus" class="line-hint"></div>
         <div id="roiInfo" class="roi-info">No box drawn. The whole image is used.</div>
 
@@ -602,10 +721,43 @@
         </div>
       </div>
 
-      <!-- Card 4: Line Profile (independent from ROI — its own canvas + diff preview) -->
-      <div class="card">
+      <!-- Card 4: Scale Calibration (px -> mm), independent, persists across runs.
+           Hidden from the main page -- this is now step 1 of the Measure wizard
+           (see openScaleStep()), which reparents calibCanvas/calibInfo/calibEntryRow
+           out of here into the shared zoom modal. The elements stay in the DOM
+           (just hidden) so that reparenting has real, working nodes to move. -->
+      <div class="card" style="display:none;">
         <div class="card-header">
           <div class="card-num">4</div>
+          <div class="card-head-text">
+            <h2 class="card-title">Scale <span class="opt">Optional</span></h2>
+            <div class="card-desc">Set a real-world scale so sizes read in mm. Put a ruler or a known mark in the reference photo, drag a line along a known length, then type that length.</div>
+          </div>
+          <button id="clearCalibBtn" class="btn-secondary" style="display:none;">✕ Clear scale</button>
+        </div>
+
+        <div id="calibActiveBar" class="roi-active-bar"></div>
+        <div id="calibPlaceholder" class="roi-placeholder">Upload the reference photo first. It shows up here so you can trace a known length.</div>
+        <div class="canvas-frame">
+          <canvas id="calibCanvas"></canvas>
+          <button type="button" class="canvas-zoom-btn" data-target="calibCanvas" data-title="Scale" aria-label="Expand to draw">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          </button>
+        </div>
+        <div id="calibInfo" class="roi-info">No line drawn. Drag along a known distance in the photo.</div>
+
+        <div class="calib-row" id="calibEntryRow" style="display:none;">
+          <label for="calibMm">Known length</label>
+          <input type="number" id="calibMm" class="form-control" step="0.1" min="0" placeholder="e.g. 10" />
+          <span class="calib-unit">mm</span>
+          <button type="button" id="calibApplyBtn" class="btn-secondary">Set scale</button>
+        </div>
+      </div>
+
+      <!-- Card 5: Line Profile (independent from ROI - its own canvas + diff preview) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-num">5</div>
           <div class="card-head-text">
             <h2 class="card-title">Line Profile <span class="opt">Optional</span></h2>
             <div class="card-desc">Drag a line across the jet on the preview below (the difference image, brightened so the jet is visible). The chart appears automatically when you let go and shows how strong the change is along that line.</div>
@@ -614,7 +766,12 @@
         </div>
 
         <div id="linePlaceholder" class="roi-placeholder">Upload both photos first, the difference preview shows up here.</div>
-        <canvas id="lineCanvas"></canvas>
+        <div class="canvas-frame">
+          <canvas id="lineCanvas"></canvas>
+          <button type="button" class="canvas-zoom-btn" data-target="lineCanvas" data-title="Line Profile" aria-label="Expand to draw">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          </button>
+        </div>
         <div id="lineBgStatus" class="line-hint"></div>
         <div id="lineInfo" class="roi-info">No line drawn. Drag across the jet at any angle.</div>
 
@@ -630,14 +787,17 @@
         </div>
       </div>
 
-      <!-- Card 5: Experimental Parameters -->
-      <div class="card">
+      <!-- Card 6: Experimental Parameters -->
+      <div class="card collapsible collapsed">
         <div class="card-header">
-          <div class="card-num">5</div>
+          <div class="card-num">6</div>
           <div class="card-head-text">
             <h2 class="card-title">Experimental Parameters <span class="opt">Optional</span></h2>
             <div class="card-desc">Saved into the CSV log with each run.</div>
           </div>
+          <button type="button" class="card-collapse" data-collapse aria-label="Expand or collapse this section">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
         </div>
         <div class="grid-4" style="margin-bottom: 1.1rem;">
           <div class="form-group"><label>Gas Type</label><input type="text" id="gasType" class="form-control" placeholder="Ar, He, None" /></div>
@@ -647,14 +807,17 @@
         </div>
       </div>
 
-      <!-- Card 6: Camera & Layout Settings -->
-      <div class="card">
+      <!-- Card 7: Camera & Layout Settings -->
+      <div class="card collapsible collapsed">
         <div class="card-header">
-          <div class="card-num">6</div>
+          <div class="card-num">7</div>
           <div class="card-head-text">
             <h2 class="card-title">Camera &amp; Layout Settings <span class="opt">Optional</span></h2>
             <div class="card-desc">Camera settings and distances, saved with the run.</div>
           </div>
+          <button type="button" class="card-collapse" data-collapse aria-label="Expand or collapse this section">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
         </div>
         <div class="grid-4" style="margin-bottom: 1.1rem;">
           <div class="form-group"><label>Camera Type</label><input type="text" id="camType" class="form-control" /></div>
@@ -671,10 +834,18 @@
       </div>
 
       <div class="action-bar">
-        <div class="input-desc" style="text-align:center;">Runs the difference and saves everything drawn (main stats, compare regions, and line profile) to the CSV logs under one run ID.</div>
+        <div class="input-desc" style="text-align:center;">Runs the diff and logs everything drawn under one run ID. Shortcut: Ctrl or Cmd + Enter.</div>
         <button id="analyzeBtn" disabled>Analyze</button>
         <div id="status">Upload both photos to continue.</div>
       </div>
+
+      <footer class="app-footer">
+        <span class="ft-name">PlasmaFlow-BOS</span>
+        <span class="ft-sep">/</span>
+        <span>Background-oriented schlieren</span>
+        <span class="ft-sep">/</span>
+        <span>Runs locally, your images stay on your computer</span>
+      </footer>
     </div>
   </div>
 
@@ -701,14 +872,15 @@
     </div>
 
     <div class="input-desc" id="statsNote">
-      Peak, mean, and coverage are brightness differences (0&ndash;255), not physical units. Lighting, camera shake, and noise all mix in. Use them to compare runs on the same setup only. Shoot a flow-off vs flow-off control pair first to know your noise floor.
+      Peak, mean, and coverage are brightness shifts from 0 to 255, not physical units. Lighting, shake, and noise mix in, so compare runs on the same setup only. Shoot a flow-off pair first to know your noise floor.
     </div>
 
     <div class="rv-panel">
       <div class="rv-panel-head">
-        <h3>Visualized Images <span class="hint">click image to expand</span></h3>
+        <h3>Difference Images <span class="hint">click to expand</span></h3>
         <div style="display:flex; gap:0.6rem;">
           <button id="toggleRoiBoxBtn" class="btn-secondary" type="button" style="display:none;">Show ROI Box</button>
+          <button id="measureToggleBtn" class="btn-secondary" type="button">Measure</button>
           <button id="dlZipBtn" class="dl-zip-btn">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             Download ZIP
@@ -727,6 +899,7 @@
           <div class="img-wrap">
             <img id="grayImg" alt="Grayscale diff" />
             <div class="roi-box-layer" id="grayRoiLayer"></div>
+            <div class="measure-layer" id="grayMeasureLayer"></div>
           </div>
         </div>
         <div class="image-box" onclick="openFullscreen('colorImg')">
@@ -737,6 +910,7 @@
           <div class="img-wrap">
             <img id="colorImg" alt="Color diff" />
             <div class="roi-box-layer" id="colorRoiLayer"></div>
+            <div class="measure-layer" id="colorMeasureLayer"></div>
           </div>
         </div>
       </div>
@@ -775,6 +949,29 @@
       </div>
     </div>
 
+    <div class="rv-panel" id="controlResultPanel" style="display:none;">
+      <div class="rv-panel-head">
+        <h3>Noise Baseline <span class="hint">Reference 1 vs Reference 2, both flow off</span></h3>
+      </div>
+      <div class="image-frame">
+        <div class="image-box" onclick="openFullscreen('controlGrayImg')">
+          <div class="image-title-row">
+            <div class="image-title">Grayscale Difference</div>
+            <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('controlGrayImg', 'noise_baseline_grayscale.png')">Download</button>
+          </div>
+          <img id="controlGrayImg" alt="Noise baseline grayscale diff" />
+        </div>
+        <div class="image-box" onclick="openFullscreen('controlColorImg')">
+          <div class="image-title-row">
+            <div class="image-title">Pseudo-color</div>
+            <button class="btn-secondary" type="button" onclick="event.stopPropagation(); downloadSingleImage('controlColorImg', 'noise_baseline_color.png')">Download</button>
+          </div>
+          <img id="controlColorImg" alt="Noise baseline color diff" />
+        </div>
+      </div>
+      <div class="line-hint">Compare this against the images above: if it shows the same kind of structured, spatially continuous pattern as the real Test result, that pattern is likely noise, not a real signal.</div>
+    </div>
+
     <div class="rv-panel" id="roiResultPanel" style="display:none;">
       <div class="rv-panel-head">
         <h3>Region Comparison <span class="hint">signal vs background</span></h3>
@@ -785,7 +982,7 @@
         <thead>
           <tr>
             <th>Region</th><th>Role</th><th>Mean</th><th>Peak (p99)</th>
-            <th>Std (noise)</th><th>Coverage %</th><th>SNR (mean)</th><th>SNR (std)</th>
+            <th>Std (noise)</th><th>Coverage %</th><th>SNR (mean)</th>
           </tr>
         </thead>
         <tbody id="roiTableBody"></tbody>
@@ -817,19 +1014,19 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
         Back to Setup
       </button>
-      <div class="rv-title">Jet Plasma On/Off Compare</div>
+      <div class="rv-title">Plasma On/Off Compare</div>
     </div>
 
     <div class="input-desc">
-      Both runs below share the same Reference, ROI/Compare Regions, and settings, so a difference between OFF and
-      ON here is more directly comparable than two separately-configured single runs. Still worth checking against
-      a Noise Baseline before concluding a difference is a genuine plasma effect rather than shot-to-shot noise.
+      Both runs share the same Reference, regions, and settings, so an OFF to ON difference is easy to compare.
+      Still check it against a Noise Baseline before calling it a real plasma effect rather than shot noise.
     </div>
 
     <div class="rv-panel">
       <div class="rv-panel-head">
-        <h3>Output Images</h3>
-        <div style="display:flex; gap:0.6rem;">
+        <h3>Difference Images <span class="hint">plasma off vs on</span></h3>
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+          <button id="toggleCompareRoiBoxBtn" class="btn-secondary" type="button" style="display:none;">Show ROI Box</button>
           <button id="dlCompareBtn" class="btn-secondary" type="button">Download Comparison Image</button>
           <button id="dlCompareZipBtn" class="dl-zip-btn">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -840,23 +1037,91 @@
       <div class="compare-frame">
         <div class="compare-col">
           <div class="compare-col-label off">Plasma OFF · Pseudo-color</div>
-          <img id="compareOffImg" alt="Plasma OFF diff" />
+          <div class="img-wrap">
+            <img id="compareOffImg" alt="Plasma OFF diff" />
+            <div class="roi-box-layer" id="compareOffRoiLayer"></div>
+          </div>
         </div>
         <div class="compare-col">
           <div class="compare-col-label on">Plasma ON · Pseudo-color</div>
-          <img id="compareOnImg" alt="Plasma ON diff" />
+          <div class="img-wrap">
+            <img id="compareOnImg" alt="Plasma ON diff" />
+            <div class="roi-box-layer" id="compareOnRoiLayer"></div>
+          </div>
         </div>
       </div>
       <div class="compare-frame" style="margin-top:1.1rem;">
         <div class="compare-col">
           <div class="compare-col-label off">Plasma OFF · Grayscale</div>
-          <img id="compareOffGrayImg" alt="Plasma OFF grayscale diff" />
+          <div class="img-wrap">
+            <img id="compareOffGrayImg" alt="Plasma OFF grayscale diff" />
+            <div class="roi-box-layer" id="compareOffGrayRoiLayer"></div>
+          </div>
         </div>
         <div class="compare-col">
           <div class="compare-col-label on">Plasma ON · Grayscale</div>
-          <img id="compareOnGrayImg" alt="Plasma ON grayscale diff" />
+          <div class="img-wrap">
+            <img id="compareOnGrayImg" alt="Plasma ON grayscale diff" />
+            <div class="roi-box-layer" id="compareOnGrayRoiLayer"></div>
+          </div>
         </div>
       </div>
+
+      <div class="extra-views-toggle">
+        <button id="showCompareRawBtn" class="btn-secondary" type="button">Show Raw</button>
+        <button id="showCompareThreshBtn" class="btn-secondary" type="button">Show Thresholded</button>
+        <button id="showCompareSignalRoiBtn" class="btn-secondary" type="button" style="display:none;">Show Zoomed Signal ROI</button>
+      </div>
+
+      <div class="compare-frame" id="compareRawBox" style="display:none; margin-top:1.1rem;">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF · Raw Diff</div>
+          <img id="compareOffRawImg" alt="Plasma OFF raw diff" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON · Raw Diff</div>
+          <img id="compareOnRawImg" alt="Plasma ON raw diff" />
+        </div>
+      </div>
+
+      <div class="compare-frame" id="compareThreshBox" style="display:none; margin-top:1.1rem;">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF · Thresholded</div>
+          <img id="compareOffThreshImg" alt="Plasma OFF thresholded diff" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON · Thresholded</div>
+          <img id="compareOnThreshImg" alt="Plasma ON thresholded diff" />
+        </div>
+      </div>
+
+      <div class="compare-frame" id="compareSignalRoiBox" style="display:none; margin-top:1.1rem;">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF · Signal ROI (Zoomed)</div>
+          <img id="compareOffSignalRoiImg" alt="Plasma OFF signal ROI crop" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON · Signal ROI (Zoomed)</div>
+          <img id="compareOnSignalRoiImg" alt="Plasma ON signal ROI crop" />
+        </div>
+      </div>
+    </div>
+
+    <div class="rv-panel" id="compareControlPanel" style="display:none;">
+      <div class="rv-panel-head">
+        <h3>Noise Baseline <span class="hint">Reference 1 vs Reference 2, both flow off</span></h3>
+      </div>
+      <div class="compare-frame">
+        <div class="compare-col">
+          <div class="compare-col-label off">Grayscale</div>
+          <img id="compareControlGrayImg" alt="Noise baseline grayscale diff" />
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label off">Pseudo-color</div>
+          <img id="compareControlColorImg" alt="Noise baseline color diff" />
+        </div>
+      </div>
+      <div class="line-hint" style="margin-top:0.9rem;">Compare this against the OFF/ON images above: if it shows the same kind of structured, spatially continuous pattern, that pattern is likely noise, not a real signal.</div>
     </div>
 
     <div class="rv-panel" id="compareRoiPanel" style="display:none;">
@@ -892,15 +1157,15 @@
         <tbody id="compareRoiTableBody"></tbody>
       </table>
       <div class="roi-note">
-        ON / OFF close to 1.0x means plasma made no measurable difference beyond noise in that region. SNR (mean) =
-        region mean ÷ background mean for that run; close to 1x means that run's signal is indistinguishable from
-        noise. Blank if no region is marked Background.
+        ON / OFF near 1.0x means plasma changed nothing beyond noise in that region. SNR (mean) is the region mean
+        divided by the background mean for that run. Near 1x means signal and noise look the same. Blank when no
+        region is marked Background.
       </div>
     </div>
 
     <div class="rv-panel" id="compareWholePanel" style="display:none;">
       <div class="rv-panel-head">
-        <h3>Whole-Frame Stats <span class="hint">no ROI/Compare Regions drawn -- full frame</span></h3>
+        <h3>Whole-Frame Stats <span class="hint">no regions drawn, full frame</span></h3>
       </div>
       <table class="roi-table compare-table">
         <thead>
@@ -909,6 +1174,23 @@
         <tbody id="compareWholeTableBody"></tbody>
       </table>
     </div>
+
+    <div class="rv-panel" id="compareLinePanel" style="display:none;">
+      <div class="rv-panel-head">
+        <h3>Line Profile <span class="hint">same line, both runs</span></h3>
+      </div>
+      <div class="compare-frame">
+        <div class="compare-col">
+          <div class="compare-col-label off">Plasma OFF <span class="hint" id="compareLineOffHint"></span></div>
+          <div id="compareLineChartOffWrap"><canvas id="compareLineChartOff" width="1000" height="360"></canvas></div>
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-label on">Plasma ON <span class="hint" id="compareLineOnHint"></span></div>
+          <div id="compareLineChartOnWrap"><canvas id="compareLineChartOn" width="1000" height="360"></canvas></div>
+        </div>
+      </div>
+      <div class="line-hint">Peak marks the strongest point along the line for that run; the shaded band is where the signal stays above half the peak (width readout). Compare peak height and band width between OFF and ON to see whether plasma changed the jet's structure.</div>
+    </div>
   </div>
 
   <div id="imgModal" class="modal" onclick="closeFullscreen()">
@@ -916,54 +1198,238 @@
     <img id="modalImg" />
   </div>
 
+  <!-- Zoom-to-draw modal: reused by ROI / Line Profile / Scale. The target canvas is
+       moved into #canvasZoomBody while open (its existing drag listeners keep working
+       since it's the same DOM node), then moved back on close. -->
+  <div id="canvasZoomModal" class="canvas-zoom-modal">
+    <div class="canvas-zoom-dialog" onclick="event.stopPropagation()">
+      <div class="canvas-zoom-head">
+        <span id="canvasZoomTitle">Draw</span>
+        <div style="display:flex; gap:0.6rem;">
+          <!-- Measure only (multiple lines) -- removes just the last line drawn,
+               instead of Clear's "wipe everything". Hidden for ROI/Line/Scale,
+               which are each a single box/line where Clear already covers it. -->
+          <button type="button" class="btn-secondary" id="canvasZoomUndo" style="display:none;">Undo</button>
+          <button type="button" class="btn-secondary" id="canvasZoomClear">Clear</button>
+          <button type="button" class="btn-secondary" id="canvasZoomDone">Done</button>
+        </div>
+      </div>
+      <div class="canvas-zoom-body" id="canvasZoomBody"></div>
+      <!-- Step 1 of the Measure wizard reparents calibInfo + calibEntryRow (the
+           "Known length (mm)" input and Set scale button) in here, alongside the
+           calibCanvas that's zoomed into canvasZoomBody via the normal
+           openCanvasZoom() path -- see openScaleStep(). Hidden the rest of the time. -->
+      <div class="canvas-zoom-foot" id="canvasZoomFoot" style="display:none;"></div>
+    </div>
+  </div>
+
   <!-- Capture Guide popup -->
   <div id="captureGuideModal" class="cg-modal" role="dialog" aria-modal="true" aria-labelledby="captureGuideTitle">
     <div class="cg-dialog">
       <div class="cg-dialog-head">
-        <span class="cg-i" aria-hidden="true">i</span>
+        <span class="cg-i" aria-hidden="true">?</span>
         <div>
-          <h2 id="captureGuideTitle">Capture Guide</h2>
-          <div class="sub">How to shoot reliable reference / test pairs</div>
+          <h2 id="captureGuideTitle">User Guide</h2>
+          <div class="sub">How to shoot, and how each feature works</div>
         </div>
         <button type="button" class="cg-dialog-close" id="captureGuideClose" aria-label="Close">&times;</button>
       </div>
+
+      <div class="cg-main">
+      <nav class="cg-side" id="cgTabNav" aria-label="Guide sections">
+        <div class="cg-side-label">Guide</div>
+        <button type="button" class="cg-tab active" data-tab="start">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+          Start
+        </button>
+        <button type="button" class="cg-tab" data-tab="capture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          Capture
+        </button>
+        <button type="button" class="cg-tab" data-tab="features">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          Features
+        </button>
+        <button type="button" class="cg-tab" data-tab="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Settings
+        </button>
+        <button type="button" class="cg-tab" data-tab="results">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="15"/><line x1="12" y1="20" x2="12" y2="9"/><line x1="18" y1="20" x2="18" y2="5"/></svg>
+          Results
+        </button>
+      </nav>
+
       <div class="cg-body">
-        <div class="cg-group">
-          <h3>Camera setup</h3>
-          <ul>
-            <li>Lock everything to manual: focus, ISO, exposure, and white balance. Auto settings can change between the two shots and look like a fake signal.</li>
-            <li>Use a tripod. Use the self-timer or a remote so you never touch the camera between the reference and test shots.</li>
-            <li>Take the reference (flow off) and test (flow on) back-to-back. Do not move the camera, nozzle, or background in between.</li>
-          </ul>
+        <!-- START -->
+        <div class="cg-tab-panel" data-panel="start">
+          <div class="cg-group">
+            <p class="cg-lead">This tool shows gas flow you cannot normally see. It lines up two photos of a speckled background, one with the flow off and one with it on, and maps where the background shifted. Brighter areas mean a bigger shift.</p>
+          </div>
+          <div class="cg-group">
+            <h3>Five steps</h3>
+            <ol>
+              <li>Upload a <strong>Reference</strong> (flow off) and a <strong>Test</strong> (flow on).</li>
+              <li>Optional: drag a box on the preview to set an <strong>ROI</strong> so numbers come from the jet, not the whole frame.</li>
+              <li>Optional: set a <strong>Scale</strong> so sizes read in mm, and draw a <strong>Line</strong> across the jet for a width and profile.</li>
+              <li>Press <strong>Analyze</strong>.</li>
+              <li>Read the images and numbers, then <strong>Download ZIP</strong> to keep the results and CSV log.</li>
+            </ol>
+          </div>
+          <div class="cg-group">
+            <h3>First thing to do</h3>
+            <ul>
+              <li>Before trusting any result, shoot two flow-off photos and run them as a Noise Baseline. That shows how much signal is just noise on your setup.</li>
+            </ul>
+          </div>
         </div>
-        <div class="cg-group">
-          <h3>Background &amp; lighting</h3>
-          <ul>
-            <li>Fill the frame with the speckle background. Keep it flat and wrinkle-free.</li>
-            <li>Light the background evenly and brightly. Avoid glare or reflections going straight into the lens.</li>
-            <li>For plasma runs, bright background lighting helps wash out the faint purple glow so it doesn't count as signal.</li>
-          </ul>
+
+        <!-- CAPTURE -->
+        <div class="cg-tab-panel" data-panel="capture" style="display:none;">
+          <div class="cg-group">
+            <h3>Camera</h3>
+            <ul>
+              <li>Lock focus, ISO, exposure, and white balance to manual. Auto modes drift between shots and fake a signal.</li>
+              <li>Use a tripod. Trigger with a timer or remote so you never touch the camera between shots.</li>
+              <li>Shoot Reference and Test back to back. Do not move the camera, nozzle, or background in between.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Background and light</h3>
+            <ul>
+              <li>Fill the frame with the speckle pattern. Keep it flat and wrinkle free.</li>
+              <li>Light it evenly and bright. Avoid glare straight into the lens.</li>
+              <li>For plasma runs, bright light helps wash out the faint glow so it does not read as signal.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Distances</h3>
+            <ul>
+              <li>Keep the nozzle to background gap fixed, around 10 cm, so runs stay comparable.</li>
+              <li>A bigger gap gives a stronger signal for weak flow, but keep it the same within a set of runs.</li>
+              <li>Write camera, nozzle, and background distances in the parameter fields every time.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>For mm sizes</h3>
+            <ul>
+              <li>Put a ruler or a mark of known length flat on the background, in the same plane as the flow.</li>
+              <li>Keep it in the Reference photo so you can trace it in the Scale card.</li>
+            </ul>
+          </div>
         </div>
-        <div class="cg-group">
-          <h3>Distances (keep fixed and write them down)</h3>
-          <ul>
-            <li>Keep the nozzle-to-background distance around 10 cm so results match the earlier gas runs.</li>
-            <li>Record camera, nozzle, and background distances every time in the parameter fields.</li>
-          </ul>
+
+        <!-- FEATURES -->
+        <div class="cg-tab-panel" data-panel="features" style="display:none;">
+          <div class="cg-group">
+            <h3>Modes</h3>
+            <ul>
+              <li><strong>Single Analysis</strong>: one Reference against one Test. Use this for a quick check, a one-off shot, or once you already know the actuator works and just want today's numbers.</li>
+              <li><strong>Plasma On/Off Compare</strong>: one Reference against two Tests (plasma off and on), same ROI and settings, shown side by side with OFF vs ON vs ratio for every metric. Use this when you need to prove the shift is from the plasma itself, not from camera drift, background noise, or heat off the nozzle — the OFF column is your control.</li>
+              <li>Not sure which to pick: if the question is "does the actuator do anything," use Compare. If that's already answered and you're just logging a run, Single is faster.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>ROI</h3>
+            <ul>
+              <li>Drag a box on the preview. Peak, mean, and coverage then come from inside the box only.</li>
+              <li>Skip it to use the whole frame. Lock an aspect ratio first if you want a fixed shape.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Compare Regions (signal vs background)</h3>
+            <ul>
+              <li>Every box you drag is added to a list. Mark one as <strong>Background</strong> (no flow) and the rest as <strong>Signal</strong> (the jet).</li>
+              <li>After Analyze you get a table with SNR, the signal mean divided by the background mean. Near 1 means the signal is buried in noise.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Scale (mm)</h3>
+            <ul>
+              <li>Trace a known length in the Reference photo and type its size in mm.</li>
+              <li>Line length and jet width then read in mm everywhere. The scale is remembered until you clear it.</li>
+              <li>Re-set it if you change zoom or camera distance.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Line Profile</h3>
+            <ul>
+              <li>Drag a line across the jet. The chart shows how strong the shift is along that line.</li>
+              <li>The dot marks the peak. The shaded band is the width at half the peak height. Two bumps with a dip mean you crossed both jet edges.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Noise Baseline</h3>
+            <ul>
+              <li>Add a second flow-off photo (Reference 2). The tool diffs Reference against it, both off, to show pure noise.</li>
+              <li>If your real result looks like this baseline, it is probably noise, not flow.</li>
+            </ul>
+          </div>
         </div>
-        <div class="cg-group">
-          <h3>Get reliable numbers</h3>
-          <ul>
-            <li>Take a control pair first: two "flow off" shots. Run them through the tool to see your noise floor before judging any real signal.</li>
-            <li>Draw an ROI around the jet so the numbers come from where the flow is, not the whole image.</li>
-          </ul>
+
+        <!-- SETTINGS -->
+        <div class="cg-tab-panel" data-panel="settings" style="display:none;">
+          <div class="cg-group">
+            <p class="cg-lead">Display settings change how the image looks only. Measurement settings change the numbers saved to the CSV.</p>
+          </div>
+          <div class="cg-group">
+            <h3>Display only</h3>
+            <ul>
+              <li><strong>Colormap</strong>: color scheme for the pseudo-color image.</li>
+              <li><strong>Gain</strong>: brightens faint flow so it is easier to see.</li>
+              <li><strong>Noise floor</strong>: hides pixels below a level so weak background noise goes black.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Changes the numbers</h3>
+            <ul>
+              <li><strong>Coverage threshold</strong>: a pixel counts as flow when its shift is above this. Higher is stricter.</li>
+              <li><strong>Align</strong>: corrects tiny camera or background shifts, measured from the corners only, before the diff.</li>
+              <li><strong>Denoise</strong>: a light blur on the diff to cut per-pixel sensor noise before measuring.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Auto buttons</h3>
+            <ul>
+              <li>Auto locks a slider and fills a sensible value when you press Analyze. It reads noise from a Background-tagged Compare Region if you've added one, otherwise the whole image -- add a Background region for a tighter, more accurate suggestion. Click Auto again to set it yourself.</li>
+            </ul>
+          </div>
         </div>
+
+        <!-- RESULTS -->
+        <div class="cg-tab-panel" data-panel="results" style="display:none;">
+          <div class="cg-group">
+            <h3>Reading the numbers</h3>
+            <ul>
+              <li><strong>Peak</strong> and <strong>Mean</strong> are brightness shifts from 0 to 255, not physical units. Use them to compare runs on the same setup.</li>
+              <li><strong>Coverage</strong> is the share of pixels above the threshold.</li>
+              <li><strong>SNR</strong> near 1 means signal and noise look the same. Well above 1 is a real signal.</li>
+              <li>A weak or missing plasma signal is a normal, real result. Do not force it.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Extra views</h3>
+            <ul>
+              <li><strong>Show ROI Box</strong> draws your boxes over the images.</li>
+              <li><strong>Raw</strong> is the untouched diff, no align or denoise. <strong>Thresholded</strong> is the black and white coverage mask.</li>
+              <li><strong>Zoomed Signal ROI</strong> crops to the jet at full resolution.</li>
+            </ul>
+          </div>
+          <div class="cg-group">
+            <h3>Export</h3>
+            <ul>
+              <li><strong>Download ZIP</strong> saves the images plus three CSVs: the run log, the region table, and the line profile.</li>
+              <li>The CSVs share one run ID so they join back together. mm columns are filled when a scale is set.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   </div>
 
   <script>
-    // Capture Guide popup
+    // User guide popup + tabs
     (function () {
       const openBtn = document.getElementById('captureGuideOpen');
       const closeBtn = document.getElementById('captureGuideClose');
@@ -976,6 +1442,15 @@
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modal.classList.contains('open')) close();
       });
+
+      const tabs = modal.querySelectorAll('.cg-tab');
+      const panels = modal.querySelectorAll('.cg-tab-panel');
+      const body = modal.querySelector('.cg-body');
+      tabs.forEach(tab => tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.toggle('active', t === tab));
+        panels.forEach(p => { p.style.display = p.dataset.panel === tab.dataset.tab ? '' : 'none'; });
+        if (body) body.scrollTop = 0;
+      }));
     })();
 
     const refInput = document.getElementById('refInput');
@@ -988,6 +1463,11 @@
 
     let currentAnalysisData = {};
 
+    // Real-world scale: pixels per millimetre, or null when not calibrated. Set from
+    // the Scale card (trace a known length on the reference photo). Used to show line
+    // length / jet width in mm instead of pixels. Persisted across reloads.
+    let calibPxPerMm = null;
+
     // ===== App mode: Single Analysis vs Plasma On/Off Compare =====
     // Compare mode reuses the same Reference/ROI/Settings/Experimental Parameter
     // cards as Single mode -- it just needs a second Test photo (Plasma ON) and
@@ -999,7 +1479,10 @@
       const baseReady = refInput.files.length && testInput.files.length;
       const ready = appMode === 'compare' ? (baseReady && testOnInput.files.length) : baseReady;
       analyzeBtn.disabled = !ready;
+      statusEl.style.color = 'var(--muted)';
       if (ready) statusEl.textContent = "Ready. Press Analyze when you're set.";
+      else if (appMode === 'compare' && baseReady) statusEl.textContent = 'Upload the Plasma ON test to continue.';
+      else statusEl.textContent = 'Upload both photos to continue.';
     }
 
     function setAppMode(mode) {
@@ -1019,6 +1502,18 @@
 
     document.querySelectorAll('.mode-btn').forEach(btn => {
       btn.onclick = () => setAppMode(btn.dataset.mode);
+    });
+
+    // Collapsible optional cards. Collapsed by default for a clean first view;
+    // once a user opens one, that choice is remembered across reloads.
+    document.querySelectorAll('.card.collapsible').forEach(card => {
+      const num = card.querySelector('.card-num');
+      const key = 'bosCollapse_' + (num ? num.textContent.trim() : '');
+      try { if (localStorage.getItem(key) === 'open') card.classList.remove('collapsed'); } catch {}
+      card.querySelector('.card-header').addEventListener('click', () => {
+        card.classList.toggle('collapsed');
+        try { localStorage.setItem(key, card.classList.contains('collapsed') ? 'closed' : 'open'); } catch {}
+      });
     });
 
     document.getElementById('gainSlider').oninput = (e) => document.getElementById('gainVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
@@ -1078,6 +1573,17 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // Ctrl/Cmd + Enter runs Analyze from anywhere on the setup page (not while the
+    // guide is open or results are showing).
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const onSetup = !document.body.classList.contains('results-mode')
+          && !document.body.classList.contains('compare-results-mode');
+        const guideOpen = document.getElementById('captureGuideModal').classList.contains('open');
+        if (onSetup && !guideOpen && !analyzeBtn.disabled) { e.preventDefault(); analyzeBtn.click(); }
+      }
+    });
+
     function openFullscreen(imgId) {
       document.getElementById('modalImg').src = document.getElementById(imgId).src;
       document.getElementById('imgModal').style.display = 'flex';
@@ -1086,6 +1592,190 @@
     function closeFullscreen() {
       document.getElementById('imgModal').style.display = 'none';
     }
+
+    // ===== Zoom-to-draw modal (shared by ROI / Line Profile / Scale canvases) =====
+    // Moves the real canvas element into a big centered modal so dragging a box/line
+    // is easier on a small screen, then puts it back exactly where it was on close.
+    // The canvas's own mousedown/mousemove/mouseup listeners stay attached across the
+    // move (same DOM node), so no drawing logic needs to be duplicated.
+    let canvasZoomHome = null; // { canvas, parent, nextSibling }
+    // Same shared modal, but for reparenting a Measure card's .img-wrap (img +
+    // overlay layers) instead of a <canvas> -- see openMeasureZoom() below.
+    let measureZoomHome = null; // { wrap, parent, nextSibling, imgId, layerId, slotKey }
+    // Measure is a 2-step wizard in this same modal: 'scale' (set px/mm on the
+    // reference photo) then 'measure' (draw the line on the color diff). null
+    // outside that flow (plain ROI/Line/Scale-card zoom doesn't use this).
+    let wizardStep = null;
+    // calibInfo + calibEntryRow ("Known length" input + Set scale button) get
+    // reparented alongside calibCanvas during the scale step -- see openScaleStep().
+    let calibExtraHome = null; // { info, infoParent, infoNext, entry, entryParent, entryNext }
+    // CSS max-width/max-height only ever shrink a canvas, never grow one that's
+    // already smaller than the available space -- which is exactly the case here
+    // (source previews top out around ~1200px). So the display size has to be set
+    // explicitly in JS: measure the modal body, fit the canvas's real pixel size
+    // into it (upscaling included), and set canvas.style.width/height directly.
+    function fitZoomedCanvas() {
+      if (!canvasZoomHome) return;
+      const canvas = canvasZoomHome.canvas;
+      const body = document.getElementById('canvasZoomBody');
+      const pad = 2 * 21; // matches .canvas-zoom-body padding (1.3rem ~= 21px) each side
+      const availW = Math.max(50, body.clientWidth - pad);
+      const availH = Math.max(50, body.clientHeight - pad);
+      const scale = Math.min(availW / canvas.width, availH / canvas.height);
+      canvas.style.width = Math.round(canvas.width * scale) + 'px';
+      canvas.style.height = Math.round(canvas.height * scale) + 'px';
+    }
+    function openCanvasZoom(canvasId, title) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !canvas.classList.contains('has-image')) return;
+      canvasZoomHome = { canvas, parent: canvas.parentElement, nextSibling: canvas.nextElementSibling };
+      document.getElementById('canvasZoomTitle').textContent = title || 'Draw';
+      document.getElementById('canvasZoomUndo').style.display = 'none'; // single box/line here -- Clear already covers it
+      document.getElementById('canvasZoomBody').appendChild(canvas);
+      document.getElementById('canvasZoomModal').classList.add('open');
+      requestAnimationFrame(fitZoomedCanvas);
+    }
+    // keepOpen: tear down whatever's currently shown (canvas/img-wrap/calib
+    // extras) and put it back home, but leave the modal itself open -- used by
+    // the Measure wizard's "Next" step to swap scale-setup for the drawing
+    // step in one continuous session instead of closing and reopening.
+    function closeCanvasZoom(keepOpen) {
+      const modal = document.getElementById('canvasZoomModal');
+      if (!modal.classList.contains('open')) return;
+      if (!keepOpen) modal.classList.remove('open');
+      if (canvasZoomHome) {
+        const { canvas, parent, nextSibling } = canvasZoomHome;
+        canvas.style.width = '';
+        canvas.style.height = '';
+        parent.insertBefore(canvas, nextSibling);
+        canvasZoomHome = null;
+      }
+      if (measureZoomHome) {
+        const { wrap, parent, nextSibling, layerId } = measureZoomHome;
+        document.getElementById(layerId).classList.remove('active');
+        parent.insertBefore(wrap, nextSibling);
+        measureZoomHome = null;
+        // Back at the small size -- every overlay sized against clientWidth/
+        // clientHeight needs to be redrawn now that the image shrank back down.
+        requestAnimationFrame(() => {
+          measureSlots().forEach(s => renderMeasureLayer(document.getElementById(s.imgId), document.getElementById(s.layerId), measureLines[s.key]));
+          if (roiBoxOverlayVisible) renderRoiBoxOverlays();
+        });
+      }
+      if (calibExtraHome) {
+        const { bar, barParent, barNext, info, infoParent, infoNext, entry, entryParent, entryNext } = calibExtraHome;
+        // Original order is bar, ..., info, entry -- info's captured "next
+        // sibling" reference is entry itself (another node we're also moving
+        // back), so entry has to land home again *before* info's insertBefore
+        // call runs, or the reference node isn't a child yet (NotFoundError).
+        entryParent.insertBefore(entry, entryNext);
+        infoParent.insertBefore(info, infoNext);
+        barParent.insertBefore(bar, barNext);
+        document.getElementById('canvasZoomFoot').style.display = 'none';
+        calibExtraHome = null;
+      }
+      if (!keepOpen) {
+        wizardStep = null;
+        document.getElementById('canvasZoomClear').textContent = 'Clear';
+        document.getElementById('canvasZoomDone').textContent = 'Done';
+        document.getElementById('canvasZoomUndo').style.display = 'none';
+      }
+    }
+
+    // ===== Measure wizard: step 1, set scale on the reference photo =====
+    function openScaleStep() {
+      wizardStep = 'scale';
+      const bar = document.getElementById('calibActiveBar');
+      const info = document.getElementById('calibInfo');
+      const entry = document.getElementById('calibEntryRow');
+      calibExtraHome = { bar, barParent: bar.parentElement, barNext: bar.nextElementSibling,
+                          info, infoParent: info.parentElement, infoNext: info.nextElementSibling,
+                          entry, entryParent: entry.parentElement, entryNext: entry.nextElementSibling };
+      const foot = document.getElementById('canvasZoomFoot');
+      foot.appendChild(bar);
+      foot.appendChild(info);
+      foot.appendChild(entry);
+      foot.style.display = 'flex';
+      document.getElementById('canvasZoomDone').textContent = 'Next →';
+      // openCanvasZoom() bails silently if the reference photo hasn't loaded
+      // into calibCanvas yet -- shouldn't happen once results exist (Analyze
+      // requires the reference photo), but skip straight to measuring if so.
+      const canvas = document.getElementById('calibCanvas');
+      if (!canvas.classList.contains('has-image')) {
+        closeCanvasZoom(true);
+        goToMeasureStep();
+        return;
+      }
+      openCanvasZoom('calibCanvas', 'Set Scale — drag a known length on the reference photo, optional');
+    }
+
+    // ===== Measure wizard: step 2, draw the measurement on the color diff =====
+    function goToMeasureStep() {
+      wizardStep = 'measure';
+      document.getElementById('canvasZoomClear').textContent = 'Clear';
+      document.getElementById('canvasZoomDone').textContent = 'Done';
+      openMeasureZoom('colorImg', 'colorMeasureLayer', 'color');
+    }
+    window.addEventListener('resize', () => {
+      if (canvasZoomHome) fitZoomedCanvas();
+      if (measureZoomHome) refreshZoomedMeasureOverlay();
+    });
+    document.querySelectorAll('.canvas-zoom-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        openCanvasZoom(btn.dataset.target, btn.dataset.title);
+      });
+    });
+    // Wrapped in arrow functions (rather than referencing clearROI/clearLine/
+    // clearCalibScale directly) so this object can sit here regardless of where
+    // those functions are defined later in the file -- they only need to exist by
+    // the time Clear is actually clicked, not at this line.
+    const CANVAS_CLEAR_FNS = {
+      // Every completed drag on roiCanvas also gets added to multiRois (the Compare
+      // Regions list, drawn under the quick-ROI box in drawROICanvas) -- clearROI()
+      // alone only drops the quick box, so the last-drawn box would keep rendering.
+      // Clear here means "wipe this card", so both go.
+      roiCanvas: () => { clearROI(); clearAllMultiRois(); },
+      lineCanvas: () => clearLine(),
+      calibCanvas: () => clearCalibScale(),
+    };
+    document.getElementById('canvasZoomUndo').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!measureZoomHome || !measureLines[measureZoomHome.slotKey].length) return;
+      // gray/color are always kept as mirrored copies of the same set of lines
+      // (see setupMeasureLayer), so dropping the last one from both keeps that
+      // invariant instead of drifting the two out of sync.
+      measureLines.gray = measureLines.gray.slice(0, -1);
+      measureLines.color = measureLines.color.slice(0, -1);
+      measureSlots().forEach(s => renderMeasureLayer(document.getElementById(s.imgId), document.getElementById(s.layerId), measureLines[s.key]));
+    });
+    document.getElementById('canvasZoomClear').addEventListener('click', e => {
+      e.stopPropagation();
+      const fn = canvasZoomHome && CANVAS_CLEAR_FNS[canvasZoomHome.canvas.id];
+      if (fn) fn();
+      if (measureZoomHome) {
+        // Clear both -- they're mirrored copies of the same set of lines (see
+        // setupMeasureLayer), so a stray line shouldn't survive on the other one.
+        measureLines.gray = [];
+        measureLines.color = [];
+        measureSlots().forEach(s => renderMeasureLayer(document.getElementById(s.imgId), document.getElementById(s.layerId), []));
+      }
+    });
+    document.getElementById('canvasZoomDone').addEventListener('click', () => {
+      if (wizardStep === 'scale') {
+        // "Next" -- swap scale-setup for the drawing step, same modal session
+        // (scale is optional: proceeding without typing a length just leaves
+        // Measure reading in px, same as before this wizard existed).
+        closeCanvasZoom(true);
+        goToMeasureStep();
+        return;
+      }
+      closeCanvasZoom();
+    });
+    document.getElementById('canvasZoomModal').addEventListener('click', () => closeCanvasZoom());
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeCanvasZoom();
+    });
 
     // ===== Raw / Thresholded views (hidden until requested, own download) =====
     function toggleImageBox(boxId, btnId, showLabel, hideLabel) {
@@ -1101,8 +1791,11 @@
     function downloadSingleImage(imgId, filename) {
       const img = document.getElementById(imgId);
       if (!img || !img.src) return;
+      const slot = { grayImg: 'gray', colorImg: 'color' }[imgId];
+      const lines = slot && typeof measureLines !== 'undefined' && measureLines[slot];
+      const href = (lines && lines.length) ? bakeMeasureIntoDataURL(img, lines) : img.src;
       const a = document.createElement('a');
-      a.href = img.src;
+      a.href = href;
       a.download = filename;
       a.click();
     }
@@ -1123,6 +1816,10 @@
     const MROI_SIGNAL_COLOR = '#7cc4ff';
     const MROI_BG_COLOR = '#e0a05a';
     let multiRois = []; // [{name, role, x, y, w, h}] normalized 0-1
+    // The Compare Region entry that finalizeROI() auto-added for the CURRENT quick
+    // ROI (see addRoiAsRegion) -- tracked so clearROI() can remove that exact
+    // duplicate too, instead of leaving it drawn on the canvas after "clearing".
+    let lastAutoRoi = null;
 
     const clamp01 = v => Math.max(0, Math.min(1, v));
 
@@ -1223,6 +1920,13 @@
       roiStart = { x: 0, y: 0 };
       roiEnd = { x: 0, y: 0 };
       roiNorm = null;
+      // Drop the Compare Region copy this exact box auto-added too, or it just
+      // keeps rendering (drawROICanvas draws multiRois independently of roiNorm).
+      if (lastAutoRoi) {
+        const idx = multiRois.indexOf(lastAutoRoi);
+        if (idx !== -1) { multiRois.splice(idx, 1); renderMroiList(); }
+        lastAutoRoi = null;
+      }
       updateROIInfo();
       drawROICanvas();
     }
@@ -1254,7 +1958,10 @@
       // output/stats (see getEffectiveRoiForAnalyze); this just also drops a
       // copy into the list so signal/background SNR comparison builds up as
       // you draw, without an extra click per box.
-      if (roiNorm) addRoiAsRegion(roiNorm);
+      if (roiNorm) {
+        addRoiAsRegion(roiNorm);
+        lastAutoRoi = multiRois[multiRois.length - 1];
+      }
     }
 
     // Drop a default centered box (~70% of the image) so the user sees a frame
@@ -1287,9 +1994,11 @@
       });
     });
 
+    let roiDownClient = { x: 0, y: 0 };
     roiCanvas.addEventListener('mousedown', e => {
       e.preventDefault();
       const pos = getROICanvasPos(e);
+      roiDownClient = { x: e.clientX, y: e.clientY };
       roiDragging = true;
       roiActive = false;
       roiNorm = null;
@@ -1304,17 +2013,22 @@
       drawROICanvas();
     });
 
+    // A plain click (barely any movement between mousedown and mouseup) means the
+    // user tapped the small preview rather than trying to drag a box on it -- open
+    // the big zoom view instead of leaving them with a near-invisible sliver box.
     roiCanvas.addEventListener('mouseup', e => {
       if (!roiDragging) return;
       roiEnd = getROICanvasPos(e);
+      const wasClick = Math.hypot(e.clientX - roiDownClient.x, e.clientY - roiDownClient.y) < 6;
       finalizeROI();
+      if (wasClick) openCanvasZoom('roiCanvas', 'ROI Selection');
     });
 
     roiCanvas.addEventListener('mouseleave', () => {
       if (roiDragging) finalizeROI();
     });
 
-    // ===== Line Profile (Card 3) — fully independent from ROI =====
+    // ===== Line Profile (Card 3) - fully independent from ROI =====
     // Own canvas, own state, own diff-preview background. Nothing here reads or
     // writes the ROI canvas/state, so drawing in one card never disturbs the other.
     const lineCanvas = document.getElementById('lineCanvas');
@@ -1323,6 +2037,7 @@
     let lineImageEl = new Image();      // the contrast-stretched diff preview
     let lineDiffPreviewSrc = null;      // cached data URL; invalidated when ref/test changes
     let lineDiffFetching = false;
+    let lineDiffPending = false;        // ref/test changed again while a fetch was already in flight
     let lineNorm = null;                // {x0, y0, x1, y1} normalized 0-1
     let lineDragging = false;
     let lineStart = { x: 0, y: 0 };
@@ -1371,9 +2086,11 @@
     }
 
     // Free drag only: click-drag draws one straight line at any angle.
+    let lineDownClient = { x: 0, y: 0 };
     lineCanvas.addEventListener('mousedown', e => {
       e.preventDefault();
       if (!(lineImageEl.complete && lineImageEl.naturalWidth)) return; // no preview yet
+      lineDownClient = { x: e.clientX, y: e.clientY };
       lineDragging = true;
       lineStart = getLineCanvasPos(e);
       lineEnd = lineStart;
@@ -1387,10 +2104,14 @@
       drawLineCanvas();
     });
 
+    // A plain click (barely any movement) means the user tapped the small preview
+    // rather than trying to drag a line on it -- open the big zoom view instead.
     lineCanvas.addEventListener('mouseup', e => {
       if (!lineDragging) return;
       lineEnd = getLineCanvasPos(e);
+      const wasClick = Math.hypot(e.clientX - lineDownClient.x, e.clientY - lineDownClient.y) < 6;
       finalizeLine();
+      if (wasClick) openCanvasZoom('lineCanvas', 'Line Profile');
     });
 
     lineCanvas.addEventListener('mouseleave', () => {
@@ -1448,13 +2169,25 @@
     // /line_profile and /analyze still sample the raw diff, so measurements
     // are unaffected by this preview.
     async function fetchDiffPreview() {
-      if (lineDiffFetching) return;
+      // If a preview fetch is already in flight and the ref/test files changed
+      // again in the meantime (e.g. swapping images without waiting), don't drop
+      // this request silently -- that left the ROI/Line canvases showing the
+      // diff for a stale, no-longer-selected pair of images. Instead flag it and
+      // re-run once the in-flight fetch settles, so the canvas always ends up
+      // matching whatever files are selected last.
+      if (lineDiffFetching) { lineDiffPending = true; return; }
       if (!(refInput.files.length && testInput.files.length)) {
         setLineBgStatus('Upload both Reference and Test first.');
         setRoiBgStatus('Upload both Reference and Test first.');
         return;
       }
       lineDiffFetching = true;
+      lineDiffPending = false;
+      const linePh = document.getElementById('linePlaceholder');
+      const roiPh = document.getElementById('roiPlaceholder');
+      const loadingMsg = '<span class="spinner"></span>&nbsp; Building difference preview… large photos (e.g. DSLR, 6000px+) can take several seconds.';
+      linePh.innerHTML = loadingMsg;
+      roiPh.innerHTML = loadingMsg;
       setLineBgStatus('Building difference preview…');
       setRoiBgStatus('Building difference preview…');
       const fd = new FormData();
@@ -1479,7 +2212,7 @@
         const scale = Math.min(1, MAX_W / lineImageEl.naturalWidth);
         lineCanvas.width = Math.round(lineImageEl.naturalWidth * scale);
         lineCanvas.height = Math.round(lineImageEl.naturalHeight * scale);
-        document.getElementById('linePlaceholder').style.display = 'none';
+        linePh.style.display = 'none';
         lineCanvas.classList.add('has-image');
         setLineBgStatus('');
         drawLineCanvas();
@@ -1487,10 +2220,18 @@
         await loadDiffPreviewToROICanvas(lineDiffPreviewSrc);
         setRoiBgStatus('');
       } catch (err) {
+        linePh.textContent = 'Diff preview failed: ' + err.message;
+        linePh.style.display = '';
+        roiPh.textContent = 'Diff preview failed: ' + err.message;
+        roiPh.style.display = '';
         setLineBgStatus('Diff preview failed: ' + err.message);
         setRoiBgStatus('Diff preview failed: ' + err.message);
       } finally {
         lineDiffFetching = false;
+        if (lineDiffPending) {
+          lineDiffPending = false;
+          fetchDiffPreview();
+        }
       }
     }
 
@@ -1505,7 +2246,9 @@
 
     // Draw a line-profile response as a chart with the Canvas 2D API. Renders
     // to the in-card canvas by default; the results view passes its own canvas.
-    function drawLineChart(data, canvasId = 'lineChart') {
+    // yMaxOverride lets two charts share one Y scale (Compare mode passes the max of
+    // both runs) so peak heights can be read against each other by eye.
+    function drawLineChart(data, canvasId = 'lineChart', yMaxOverride = null) {
       const canvas = document.getElementById(canvasId);
       const ctx = canvas.getContext('2d');
       const W = canvas.width, H = canvas.height;
@@ -1516,11 +2259,17 @@
       const n = values.length;
       if (!n) return;
 
-      const padL = 54, padR = 22, padT = 26, padB = 42;
+      const padL = 56, padR = 22, padT = 26, padB = 46;
       const plotW = W - padL - padR, plotH = H - padT - padB;
-      const yMax = Math.max(10, ...values, ...smoothed); // avoid a flat 0-scale
+      const yMax = yMaxOverride || Math.max(10, ...values, ...smoothed); // avoid a flat 0-scale
       const xAt = i => padL + (n === 1 ? 0 : (i / (n - 1)) * plotW);
       const yAt = v => padT + plotH - (v / yMax) * plotH;
+      // Distance along the line at sample i, in mm when a scale is set, else px.
+      const distAt = i => {
+        const px = (n === 1 ? 0 : (i / (n - 1))) * (data.length_px || 0);
+        return calibPxPerMm ? (px / calibPxPerMm) : px;
+      };
+      const distUnit = calibPxPerMm ? 'mm' : 'px';
 
       // Gridlines + Y labels (0, mid, max)
       ctx.font = '11px "IBM Plex Mono", monospace';
@@ -1538,30 +2287,37 @@
       ctx.strokeStyle = '#3b3e43'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
 
-      // X labels (start -> end of the line)
+      // Y caption
+      ctx.save();
+      ctx.translate(13, padT + plotH / 2); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#61646a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('diff intensity', 0, 0);
+      ctx.restore();
+
+      // X labels: real distance at each end + a unit caption
       ctx.fillStyle = '#969a9f'; ctx.textBaseline = 'top';
-      ctx.textAlign = 'left'; ctx.fillText('0 · start', padL, padT + plotH + 10);
-      ctx.textAlign = 'right'; ctx.fillText('end · 1', padL + plotW, padT + plotH + 10);
-      ctx.textAlign = 'center';
-      ctx.fillText('position along line', padL + plotW / 2, padT + plotH + 10);
+      ctx.textAlign = 'left'; ctx.fillText('0', padL, padT + plotH + 10);
+      ctx.textAlign = 'right'; ctx.fillText(distAt(n - 1).toFixed(calibPxPerMm ? 1 : 0), padL + plotW, padT + plotH + 10);
+      ctx.textAlign = 'center'; ctx.fillStyle = '#61646a';
+      ctx.fillText(`distance along line (${distUnit})`, padL + plotW / 2, padT + plotH + 10);
 
-      // Peak on the smoothed series, ignoring the outer 5% on each end so an
-      // edge/noise spike at the line's endpoints can't steal the marker.
-      const margin = Math.max(1, Math.floor(n * 0.05));
-      let pIdx = margin;
-      for (let i = margin; i < n - margin; i++) {
-        if (smoothed[i] > smoothed[pIdx]) pIdx = i;
+      // Peak index + width band come from the backend so the marker, band, and the
+      // reported numbers always agree. Fallback recompute only for older responses.
+      let pIdx = data.peak_index;
+      if (pIdx == null) {
+        const margin = Math.max(1, Math.floor(n * 0.05));
+        pIdx = margin;
+        for (let i = margin; i < n - margin; i++) if (smoothed[i] > smoothed[pIdx]) pIdx = i;
       }
-
-      // FWHM-style width: the contiguous span around the peak where the smoothed
-      // value stays above baseline + (peak - baseline)/2 (baseline = 10th pct).
-      const sorted = [...smoothed].sort((a, b) => a - b);
-      const baseline = sorted[Math.floor(0.1 * (sorted.length - 1))];
-      const halfMax = baseline + (smoothed[pIdx] - baseline) / 2;
-      let wL = pIdx, wR = pIdx;
-      while (wL > 0 && smoothed[wL - 1] >= halfMax) wL--;
-      while (wR < n - 1 && smoothed[wR + 1] >= halfMax) wR++;
-      const widthPx = Math.round(((wR - wL) / (n - 1)) * (data.length_px || 0));
+      let wL = data.width_lo, wR = data.width_hi, halfMax = data.half_max;
+      if (wL == null || wR == null || halfMax == null) {
+        const sorted = [...smoothed].sort((a, b) => a - b);
+        const baseline = sorted[Math.floor(0.1 * (sorted.length - 1))];
+        halfMax = baseline + (smoothed[pIdx] - baseline) / 2;
+        wL = pIdx; wR = pIdx;
+        while (wL > 0 && smoothed[wL - 1] >= halfMax) wL--;
+        while (wR < n - 1 && smoothed[wR + 1] >= halfMax) wR++;
+      }
 
       // Shade the above-half-max band behind the series, with a dashed
       // half-max level line so the cutoff is readable.
@@ -1582,24 +2338,45 @@
       plot(values, 'rgba(124,196,255,0.35)', 1.5);   // raw, faint
       plot(smoothed, LINE_COLOR, 2.5);                // smoothed, bold
 
-      // Peak marker
+      // Peak marker (sits on the smoothed curve at the backend's peak index, so the
+      // dot height and the "peak N" label are the same number)
       const pX = xAt(pIdx), pY = yAt(smoothed[pIdx]);
       ctx.fillStyle = LINE_COLOR;
       ctx.beginPath(); ctx.arc(pX, pY, 3.5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#e6e7e9'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.fillText('peak ' + data.peak, pX, pY - 7);
-
-      return { widthPx };
     }
 
-    // Builds the "peak · mean · width · length" summary line shown with a chart.
+    // "peak / mean / width / length" summary next to a chart. Width and length show
+    // in mm when a scale is set (see calibration), else px.
     function lineProfileSummary(data) {
-      const widthTxt = data.width_px ? ` · width ~${data.width_px}px (above half-max)` : '';
-      return `peak ${data.peak} · mean ${data.mean}${widthTxt} · length ${data.length_px}px · ${data.samples} samples`;
+      const widthTxt = data.width_px ? ` · width ${fmtLen(data.width_px)}` : '';
+      return `peak ${data.peak} · mean ${data.mean}${widthTxt} · length ${fmtLen(data.length_px)} · ${data.samples} samples`;
+    }
+
+    // Format a pixel length as mm when a scale is set, else px. One place so every
+    // readout flips to mm together the moment a scale is entered.
+    function fmtLen(px) {
+      if (px == null) return '-';
+      if (calibPxPerMm) return `${(px / calibPxPerMm).toFixed(2)} mm`;
+      return `${px} px`;
+    }
+
+    // Pixels to mm for CSV cells: a number when a scale is known, else blank.
+    // Defaults to the live scale but a run's snapshot scale can be passed so the
+    // CSV matches what was on screen at Analyze time.
+    function pxToMm(px, scale = calibPxPerMm) {
+      return (scale && px != null) ? +(px / scale).toFixed(3) : '';
+    }
+
+    // Escape user text (region names, roles) before putting it in innerHTML.
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g,
+        ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     }
 
     // Live line profile: fires automatically when a drag ends or the denoise
-    // toggle flips — no button. DISPLAY ONLY (never writes CSV). The sequence
+    // toggle flips - no button. DISPLAY ONLY (never writes CSV). The sequence
     // counter drops stale responses when the user redraws quickly.
     let lineFetchSeq = 0;
     async function fetchLineProfile() {
@@ -1646,6 +2423,20 @@
       clearROI();
     };
 
+    // After the ROI canvas gets a new image (a new ref/test pair was picked),
+    // the previous roiNorm (normalized 0-1) is still valid -- it just needs
+    // roiStart/roiEnd (pixel-space, used to draw the active-box overlay)
+    // recomputed against the new canvas's pixel dimensions, which can differ
+    // slightly if the new photo isn't the exact same resolution.
+    function reapplyRoiToNewCanvas() {
+      roiStart = { x: roiNorm.x * roiCanvas.width, y: roiNorm.y * roiCanvas.height };
+      roiEnd = { x: (roiNorm.x + roiNorm.w) * roiCanvas.width, y: (roiNorm.y + roiNorm.h) * roiCanvas.height };
+      roiActive = true;
+      roiDragging = false;
+      updateROIInfo();
+      drawROICanvas();
+    }
+
     // Load the same contrast-stretched diff preview used by Line Profile as the
     // ROI drawing background, so both cards show the jet the same way.
     function loadDiffPreviewToROICanvas(src) {
@@ -1659,9 +2450,11 @@
           roiCanvas.height = Math.round(img.naturalHeight * scale);
           document.getElementById('roiPlaceholder').style.display = 'none';
           roiCanvas.classList.add('has-image');
-          clearROI();
-          // If a ratio was already chosen, show its starter box right away.
-          if (roiRatio) placeDefaultROI();
+          // Keep a previously-drawn Quick ROI (see reapplyRoiToNewCanvas) instead
+          // of wiping it on every new test image. Only fall back to a fresh
+          // default box (or an empty canvas) if nothing was drawn before.
+          if (roiNorm) reapplyRoiToNewCanvas();
+          else if (roiRatio) placeDefaultROI();
           else drawROICanvas();
           resolve();
         };
@@ -1677,6 +2470,187 @@
       document.getElementById('roiPlaceholder').style.display = '';
       clearROI();
     }
+
+    // ===== Scale calibration (pixels -> millimetres) =====
+    // Draw a line over a known length in the plain reference photo (a ruler, or any
+    // mark whose real size you know), type that length in mm, and every length
+    // readout (line profile length + width) switches from px to mm. Purely client
+    // side: px/mm is measured in the reference image's own pixels, which is the same
+    // pixel space the backend reports line length/width in, so it maps 1:1.
+    const calibCanvas = document.getElementById('calibCanvas');
+    const calibCtx = calibCanvas.getContext('2d');
+    let calibImg = new Image();
+    let calibNat = { w: 0, h: 0 };
+    let calibLine = null;              // {x0,y0,x1,y1} normalized 0-1
+    let calibDragging = false;
+    let calibStart = { x: 0, y: 0 }, calibEnd = { x: 0, y: 0 };
+    const CALIB_KEY = 'bosScalePxPerMm';
+    const CALIB_COLOR = '#ef4444';
+
+    function loadRefToCalibCanvas(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          calibImg = img;
+          calibNat = { w: img.naturalWidth, h: img.naturalHeight };
+          const MAX_W = 420, MAX_H = 360;
+          const scale = Math.min(1, MAX_W / img.naturalWidth, MAX_H / img.naturalHeight);
+          calibCanvas.width = Math.round(img.naturalWidth * scale);
+          calibCanvas.height = Math.round(img.naturalHeight * scale);
+          document.getElementById('calibPlaceholder').style.display = 'none';
+          calibCanvas.classList.add('has-image');
+          // Drop any line traced on the previous photo (the saved scale stays).
+          calibLine = null;
+          updateCalibInfo();
+          drawCalibCanvas();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function calibPos(e) {
+      const rect = calibCanvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) / rect.width * calibCanvas.width,
+        y: (e.clientY - rect.top) / rect.height * calibCanvas.height,
+      };
+    }
+
+    function drawCalibCanvas() {
+      calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+      if (calibImg.complete && calibImg.naturalWidth) {
+        calibCtx.drawImage(calibImg, 0, 0, calibCanvas.width, calibCanvas.height);
+      }
+      let ln = null;
+      if (calibDragging) ln = { x0: calibStart.x, y0: calibStart.y, x1: calibEnd.x, y1: calibEnd.y };
+      else if (calibLine) ln = {
+        x0: calibLine.x0 * calibCanvas.width, y0: calibLine.y0 * calibCanvas.height,
+        x1: calibLine.x1 * calibCanvas.width, y1: calibLine.y1 * calibCanvas.height,
+      };
+      if (ln) {
+        calibCtx.strokeStyle = CALIB_COLOR; calibCtx.lineWidth = 1.5;
+        calibCtx.beginPath(); calibCtx.moveTo(ln.x0, ln.y0); calibCtx.lineTo(ln.x1, ln.y1); calibCtx.stroke();
+        [[ln.x0, ln.y0], [ln.x1, ln.y1]].forEach(([hx, hy]) => {
+          calibCtx.fillStyle = CALIB_COLOR; calibCtx.beginPath(); calibCtx.arc(hx, hy, 3, 0, Math.PI * 2); calibCtx.fill();
+          calibCtx.fillStyle = '#0b0c0d'; calibCtx.beginPath(); calibCtx.arc(hx, hy, 1.2, 0, Math.PI * 2); calibCtx.fill();
+        });
+      }
+    }
+
+    let calibDownClient = { x: 0, y: 0 };
+    calibCanvas.addEventListener('mousedown', e => {
+      e.preventDefault();
+      if (!(calibImg.complete && calibImg.naturalWidth)) return;
+      calibDownClient = { x: e.clientX, y: e.clientY };
+      calibDragging = true; calibStart = calibPos(e); calibEnd = calibStart; calibLine = null; drawCalibCanvas();
+    });
+    // snapAxis (defined with the Measure tool below, hoisted so it's fine to use
+    // here) locks the line to perfectly horizontal/vertical when close to that
+    // axis -- handy since a ruler/known mark is almost always shot straight.
+    calibCanvas.addEventListener('mousemove', e => { if (!calibDragging) return; calibEnd = snapAxis(calibStart, calibPos(e)); drawCalibCanvas(); });
+    // A plain click (barely any movement) means the user tapped the small preview
+    // rather than trying to drag a line on it -- open the big zoom view instead.
+    calibCanvas.addEventListener('mouseup', e => {
+      if (!calibDragging) return;
+      calibEnd = snapAxis(calibStart, calibPos(e));
+      const wasClick = Math.hypot(e.clientX - calibDownClient.x, e.clientY - calibDownClient.y) < 6;
+      finalizeCalibLine();
+      if (wasClick) openCanvasZoom('calibCanvas', 'Scale');
+    });
+    calibCanvas.addEventListener('mouseleave', () => { if (calibDragging) finalizeCalibLine(); });
+
+    function finalizeCalibLine() {
+      calibDragging = false;
+      const dx = calibEnd.x - calibStart.x, dy = calibEnd.y - calibStart.y;
+      if (Math.hypot(dx, dy) < 5) {
+        calibLine = null;
+      } else {
+        calibLine = {
+          x0: clamp01(calibStart.x / calibCanvas.width), y0: clamp01(calibStart.y / calibCanvas.height),
+          x1: clamp01(calibEnd.x / calibCanvas.width), y1: clamp01(calibEnd.y / calibCanvas.height),
+        };
+      }
+      updateCalibInfo();
+      drawCalibCanvas();
+    }
+
+    // Length of the drawn line in the reference image's own (natural) pixels.
+    function calibLinePx() {
+      if (!calibLine || !calibNat.w) return 0;
+      return Math.hypot((calibLine.x1 - calibLine.x0) * calibNat.w, (calibLine.y1 - calibLine.y0) * calibNat.h);
+    }
+
+    function updateCalibInfo() {
+      const info = document.getElementById('calibInfo');
+      const row = document.getElementById('calibEntryRow');
+      if (calibLine) {
+        info.textContent = `Line length: ${Math.round(calibLinePx())} px. Type its real length below.`;
+        info.style.color = 'var(--text)';
+        row.style.display = 'flex';
+      } else {
+        info.textContent = 'No line drawn. Drag along a known distance in the photo.';
+        info.style.color = 'var(--muted)';
+        row.style.display = 'none';
+      }
+    }
+
+    function setCalibScale(pxPerMm, persist = true) {
+      calibPxPerMm = pxPerMm;
+      if (persist) { try { localStorage.setItem(CALIB_KEY, String(pxPerMm)); } catch {} }
+      renderCalibState();
+      // If a line is already drawn on the setup page, refresh its live chart so
+      // lengths flip to mm right away instead of after a redraw.
+      if (lineNorm) scheduleLineProfile();
+    }
+
+    function clearCalibScale() {
+      calibPxPerMm = null;
+      calibLine = null;
+      try { localStorage.removeItem(CALIB_KEY); } catch {}
+      const mmEl = document.getElementById('calibMm'); if (mmEl) mmEl.value = '';
+      updateCalibInfo();
+      drawCalibCanvas();
+      renderCalibState();
+      if (lineNorm) scheduleLineProfile();
+    }
+
+    function renderCalibState() {
+      const bar = document.getElementById('calibActiveBar');
+      const clearBtn = document.getElementById('clearCalibBtn');
+      if (calibPxPerMm) {
+        bar.textContent = `Scale set: ${calibPxPerMm.toFixed(2)} px/mm. Line length and width now read in mm.`;
+        bar.style.display = 'block';
+        clearBtn.style.display = '';
+      } else {
+        bar.style.display = 'none';
+        clearBtn.style.display = 'none';
+      }
+    }
+
+    document.getElementById('calibApplyBtn').onclick = () => {
+      const info = document.getElementById('calibInfo');
+      const mm = parseFloat(document.getElementById('calibMm').value);
+      const px = calibLinePx();
+      if (!calibLine || !(mm > 0) || !(px > 0)) {
+        info.textContent = 'Draw a line first, then type a length greater than 0.';
+        info.style.color = 'var(--danger)';
+        return;
+      }
+      setCalibScale(px / mm);
+      info.textContent = `Scale set from a ${Math.round(px)} px line = ${mm} mm.`;
+      info.style.color = 'var(--text)';
+    };
+    document.getElementById('clearCalibBtn').onclick = clearCalibScale;
+
+    (function loadCalibFromStorage() {
+      let v = null;
+      try { v = localStorage.getItem(CALIB_KEY); } catch {}
+      const num = v == null ? NaN : parseFloat(v);
+      if (num > 0) calibPxPerMm = num;
+      renderCalibState();
+    })();
 
     // ===== File Upload =====
     function setupZone(zoneId, inputEl, previewBoxId, fileNameId) {
@@ -1706,13 +2680,14 @@
 
       // A new ref/test invalidates the diff preview shared by Line Profile and
       // ROI Selection: rebuild it if both images are present, otherwise fall
-      // back to each card's placeholder. It also invalidates any named compare
-      // regions (Signal/Background boxes) left over from the previous pair --
-      // those are normalized coordinates with no idea the underlying image
-      // changed, so without this they'd silently keep applying (and showing up
-      // in results) against images they were never drawn on.
+      // back to each card's placeholder. The Quick ROI and Compare Regions
+      // (Signal/Background boxes) are deliberately kept, not wiped -- they're
+      // normalized coordinates, so as long as the new pair is framed the same
+      // way as the last one (same locked-down camera setup), the box still
+      // lands in the right place and you don't have to redraw it for every
+      // new test shot. See reapplyRoiToNewCanvas(). Use "Clear ROI" / "Clear
+      // All" to drop them manually if a swap changes the framing.
       if (inputEl === refInput || inputEl === testInput) {
-        clearAllMultiRois();
         if (refInput.files.length && testInput.files.length) {
           fetchDiffPreview();
         } else {
@@ -1723,6 +2698,10 @@
         }
       }
 
+      // The reference photo is where a ruler/known mark is visible, so it's what the
+      // Scale card traces on. Load it there whenever a new reference comes in.
+      if (inputEl === refInput) loadRefToCalibCanvas(file);
+
       const reader = new FileReader();
       reader.onload = e => {
         document.getElementById(previewBoxId).innerHTML = `<img src="${e.target.result}" />`;
@@ -1730,7 +2709,7 @@
       reader.readAsDataURL(file);
 
       updateAnalyzeEnabled();
-      // A new image changes the diff — refresh whatever is drawn, live.
+      // A new image changes the diff - refresh whatever is drawn, live.
       if (lineNorm) scheduleLineProfile();
     }
 
@@ -1807,15 +2786,39 @@
     }
     clearAllRoiBtn.onclick = clearAllMultiRois;
 
+    // The quick-ROI box (roiNorm) and its auto-added Compare Region entry (see
+    // addRoiAsRegion) start out as the exact same coordinates, but they're stored
+    // separately -- toggling that region's role to "Background" in the Compare
+    // Regions list does NOT touch roiNorm. Matches by coordinates (safe: nothing
+    // in this app repositions an existing multiRoi entry after creation, only
+    // rename/role/delete, so an unmodified match is always the same box).
+    function roiNormMatchesBackgroundRegion() {
+      if (!roiNorm) return false;
+      return multiRois.some(m => m.role === 'background'
+        && Math.abs(m.x - roiNorm.x) < 1e-6 && Math.abs(m.y - roiNorm.y) < 1e-6
+        && Math.abs(m.w - roiNorm.w) < 1e-6 && Math.abs(m.h - roiNorm.h) < 1e-6);
+    }
+
+    // Same coordinate-match check as roiNormMatchesBackgroundRegion(), but for a
+    // frozen post-Analyze snapshot (box + region list from currentAnalysisData /
+    // currentCompareData) instead of the live roiNorm/multiRois state.
+    function boxMatchesBackgroundRegion(box, regions) {
+      if (!box || !regions) return false;
+      return regions.some(m => m.role === 'background'
+        && Math.abs(m.x - box.x) < 1e-6 && Math.abs(m.y - box.y) < 1e-6
+        && Math.abs(m.w - box.w) < 1e-6 && Math.abs(m.h - box.h) < 1e-6);
+    }
+
     // What to actually crop the main output image (and its stats) to for this
     // Analyze run. Quick ROI (the box currently drawn/committed on the canvas)
-    // wins if present -- same as before. If there's no quick ROI but the user
-    // has added Signal region(s) via Compare Regions, fall back to the union
-    // bounding box of those, so the output isn't silently the full frame just
-    // because the quick-ROI box got cleared or overwritten by a later drag.
-    // Background-role regions are never used for this -- only signal.
+    // wins if present -- same as before. If there's no quick ROI, or the quick
+    // ROI has been marked "Background" in Compare Regions (it's the noise
+    // reference now, not what the headline stats should scope to), fall back to
+    // the union bounding box of Signal region(s), so the output isn't silently
+    // the full frame just because the quick-ROI box got cleared, overwritten by
+    // a later drag, or reassigned to Background.
     function getEffectiveRoiForAnalyze() {
-      if (roiNorm) return roiNorm;
+      if (roiNorm && !roiNormMatchesBackgroundRegion()) return roiNorm;
       const signalRois = multiRois.filter(m => m.role !== 'background');
       if (!signalRois.length) return null;
       const x0 = Math.min(...signalRois.map(m => m.x));
@@ -1880,7 +2883,11 @@
       };
     }
 
-    function drawRoiBoxLayer(imgEl, layerEl, boxes) {
+    // diffSize is optional -- when omitted, falls back to Single mode's global
+    // currentAnalysisData via getDiffPixelSize(). Compare mode has two separate runs
+    // (OFF/ON), each with its own image_width/image_height, so it passes that run's
+    // size explicitly instead.
+    function drawRoiBoxLayer(imgEl, layerEl, boxes, diffSize) {
       layerEl.innerHTML = '';
       if (!imgEl.naturalWidth || !boxes.length) return;
       const cw = imgEl.clientWidth, ch = imgEl.clientHeight;
@@ -1890,8 +2897,8 @@
       // Scale normalized y/h (fractions of the diff region) into fractions of the whole
       // decoded PNG (diff + footer) before mapping onto the contain-fit rect. x/w need
       // no such scaling -- the footer only adds height, never width.
-      const diffSize = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
-      const scaleY = diffSize.h / imgEl.naturalHeight;
+      const ds = diffSize || getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
+      const scaleY = ds.h / imgEl.naturalHeight;
       boxes.forEach(b => {
         const el = document.createElement('div');
         el.className = 'roi-box-item';
@@ -1940,6 +2947,207 @@
       if (roiBoxOverlayVisible) renderRoiBoxOverlays();
     }, 150));
 
+    // ===== Measure tool (single-analysis Grayscale/Color images) =====
+    // Free-standing ruler: drag as many lines as you want on the result image, see
+    // each one's length live (mm once a Scale is set, else px). Independent of
+    // ROI/Line Profile -- this is just quick ad-hoc measurement (e.g. jet visible
+    // length), and unlike the ROI box overlay it gets baked into the pixels on
+    // download (see bakeMeasureIntoDataURL), since the whole point is to keep a
+    // record of what was measured.
+    const MEASURE_COLOR = '#ffd166';
+    const MEASURE_LABEL_COLOR = '#ffffff'; // deliberately different from the line -- the label sits centered on the line, so same color made it unreadable
+    let measureLines = { gray: [], color: [] }; // arrays of {x0,y0,x1,y1} normalized 0-1, fractions of the diff-only region
+
+    function measureSlots() {
+      return [
+        { key: 'gray', imgId: 'grayImg', layerId: 'grayMeasureLayer' },
+        { key: 'color', imgId: 'colorImg', layerId: 'colorMeasureLayer' },
+      ];
+    }
+
+    function normToPx(imgEl, n) {
+      const rect = containRect(imgEl.clientWidth, imgEl.clientHeight, imgEl.naturalWidth, imgEl.naturalHeight);
+      const ds = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
+      const scaleY = ds.h / imgEl.naturalHeight;
+      return { x: rect.x + n.x * rect.w, y: rect.y + (n.y * scaleY) * rect.h };
+    }
+    function pxToNorm(imgEl, p) {
+      const rect = containRect(imgEl.clientWidth, imgEl.clientHeight, imgEl.naturalWidth, imgEl.naturalHeight);
+      const ds = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
+      const scaleY = ds.h / imgEl.naturalHeight;
+      return {
+        x: clamp01((p.x - rect.x) / rect.w),
+        y: clamp01(((p.y - rect.y) / rect.h) / scaleY),
+      };
+    }
+    // Physical length in the diff-resolution image (same pixel space the server's
+    // own peak/mean/coverage and Line Profile numbers are computed in).
+    function measureLengthPx(imgEl, norm) {
+      const ds = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
+      return Math.hypot((norm.x1 - norm.x0) * ds.w, (norm.y1 - norm.y0) * ds.h);
+    }
+
+    // `lines` is an array of {x0,y0,x1,y1} normalized lines -- draws all of them.
+    function renderMeasureLayer(imgEl, layerEl, lines) {
+      const cw = imgEl.clientWidth, ch = imgEl.clientHeight;
+      layerEl.style.width = cw + 'px';
+      layerEl.style.height = ch + 'px';
+      if (!lines || !lines.length || !imgEl.naturalWidth) { layerEl.innerHTML = ''; return; }
+      const parts = lines.map(norm => {
+        const p0 = normToPx(imgEl, { x: norm.x0, y: norm.y0 });
+        const p1 = normToPx(imgEl, { x: norm.x1, y: norm.y1 });
+        const label = fmtLen(Math.round(measureLengthPx(imgEl, norm)));
+        const midX = (p0.x + p1.x) / 2, midY = (p0.y + p1.y) / 2;
+        return `
+          <line x1="${p0.x}" y1="${p0.y}" x2="${p1.x}" y2="${p1.y}" stroke="${MEASURE_COLOR}" stroke-width="1.5" />
+          <circle cx="${p0.x}" cy="${p0.y}" r="3" fill="${MEASURE_COLOR}" />
+          <circle cx="${p1.x}" cy="${p1.y}" r="3" fill="${MEASURE_COLOR}" />
+          <text x="${midX}" y="${midY - 8}" fill="${MEASURE_LABEL_COLOR}" font-size="11"
+                font-family="'IBM Plex Mono',monospace" font-weight="400" text-anchor="middle">${esc(label)}</text>`;
+      }).join('');
+      layerEl.innerHTML = `<svg viewBox="0 0 ${cw} ${ch}">${parts}</svg>`;
+    }
+
+    // Pressing "Measure" opens the color diff image full-size in the shared zoom
+    // modal (same one openCanvasZoom uses for canvases) -- the small ~350px
+    // thumbnail is too tight to drag a precise line on directly. Reparents that
+    // image's .img-wrap in, same trick as the canvas case, so the mousedown/
+    // mousemove/mouseup listeners set up below just keep working on the same node.
+    function refreshZoomedMeasureOverlay() {
+      if (!measureZoomHome) return;
+      const { imgId, layerId, slotKey } = measureZoomHome;
+      renderMeasureLayer(document.getElementById(imgId), document.getElementById(layerId), measureLines[slotKey]);
+      if (roiBoxOverlayVisible) renderRoiBoxOverlays();
+    }
+
+    function openMeasureZoom(imgId, layerId, slotKey) {
+      const imgEl = document.getElementById(imgId);
+      if (!imgEl || !imgEl.src) return;
+      const wrap = imgEl.closest('.img-wrap');
+      if (!wrap) return;
+      measureZoomHome = { wrap, parent: wrap.parentElement, nextSibling: wrap.nextElementSibling, imgId, layerId, slotKey };
+      // Only the zoomed layer is draggable -- .active flips on pointer-events
+      // in CSS, so the small (now-empty) thumbnail spot can't intercept clicks.
+      document.getElementById(layerId).classList.add('active');
+      document.getElementById('canvasZoomTitle').textContent = 'Measure';
+      document.getElementById('canvasZoomUndo').style.display = '';
+      document.getElementById('canvasZoomBody').appendChild(wrap);
+      document.getElementById('canvasZoomModal').classList.add('open');
+      requestAnimationFrame(refreshZoomedMeasureOverlay);
+    }
+
+    // Snaps a drag to perfectly horizontal/vertical when it's close to that axis
+    // (within ~6deg), so a "straight" line actually comes out straight instead of
+    // a couple pixels off. Recomputed fresh from the raw angle on every move --
+    // not a sticky/latched state -- so dragging further away from the axis lets
+    // go of the snap immediately and the line just follows the cursor again.
+    // Works in on-screen pixel space (not normalized coords), since that's the
+    // space the angle actually looks straight in to whoever's dragging.
+    const AXIS_SNAP_RAD = 6 * Math.PI / 180;
+    function snapAxis(startPx, curPx) {
+      const dx = curPx.x - startPx.x, dy = curPx.y - startPx.y;
+      if (!dx && !dy) return curPx;
+      const angle = Math.atan2(Math.abs(dy), Math.abs(dx)); // 0 = horizontal, PI/2 = vertical
+      if (angle < AXIS_SNAP_RAD) return { x: curPx.x, y: startPx.y };
+      if (Math.PI / 2 - angle < AXIS_SNAP_RAD) return { x: startPx.x, y: curPx.y };
+      return curPx;
+    }
+
+    function setupMeasureLayer(imgId, layerId, slotKey) {
+      const imgEl = document.getElementById(imgId);
+      const layerEl = document.getElementById(layerId);
+      let dragging = false, startNorm = null, startPx = null;
+      const getPt = e => {
+        const r = layerEl.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      };
+      // Only ever receives pointer events while zoomed (see the .active class
+      // above), so no separate "is measure mode on" check is needed here. Each
+      // drag adds one more line to measureLines[slotKey] rather than replacing
+      // it -- draw as many as you want, Clear wipes all of them at once.
+      layerEl.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        dragging = true;
+        startPx = getPt(e);
+        startNorm = pxToNorm(imgEl, startPx);
+        const preview = { x0: startNorm.x, y0: startNorm.y, x1: startNorm.x, y1: startNorm.y };
+        renderMeasureLayer(imgEl, layerEl, [...measureLines[slotKey], preview]);
+      });
+      layerEl.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const n = pxToNorm(imgEl, snapAxis(startPx, getPt(e)));
+        const preview = { x0: startNorm.x, y0: startNorm.y, x1: n.x, y1: n.y };
+        renderMeasureLayer(imgEl, layerEl, [...measureLines[slotKey], preview]);
+      });
+      window.addEventListener('mouseup', e => {
+        if (!dragging) return;
+        dragging = false;
+        const n = pxToNorm(imgEl, snapAxis(startPx, getPt(e)));
+        const norm = { x0: startNorm.x, y0: startNorm.y, x1: n.x, y1: n.y };
+        if (measureLengthPx(imgEl, norm) < 3) {
+          // Too short to be deliberate -- drop the preview, keep what's committed.
+          renderMeasureLayer(imgEl, layerEl, measureLines[slotKey]);
+          return;
+        }
+        measureLines[slotKey] = [...measureLines[slotKey], norm];
+        renderMeasureLayer(imgEl, layerEl, measureLines[slotKey]);
+        // Mirror the whole set onto the other image too -- same diff pixel
+        // space (see getDiffPixelSize), and the point is one set of lines that
+        // shows up (and bakes into downloads) on both diffs, not two tracked
+        // separately.
+        const other = measureSlots().find(s => s.key !== slotKey);
+        measureLines[other.key] = measureLines[slotKey].map(l => ({ ...l }));
+        renderMeasureLayer(document.getElementById(other.imgId), document.getElementById(other.layerId), measureLines[other.key]);
+      });
+    }
+    measureSlots().forEach(s => setupMeasureLayer(s.imgId, s.layerId, s.key));
+
+    // Fresh Analyze run -> old measurements no longer match the new image geometry.
+    function resetMeasureState() {
+      measureLines = { gray: [], color: [] };
+      measureSlots().forEach(s => renderMeasureLayer(document.getElementById(s.imgId), document.getElementById(s.layerId), []));
+    }
+
+    document.getElementById('measureToggleBtn').onclick = () => openScaleStep();
+
+    window.addEventListener('resize', debounce(() => {
+      measureSlots().forEach(s => renderMeasureLayer(document.getElementById(s.imgId), document.getElementById(s.layerId), measureLines[s.key]));
+    }, 150));
+
+    // Draws the current image plus its measured line (if any) onto an offscreen
+    // canvas at full resolution -- used so the line travels with the exported PNG
+    // instead of staying a DOM-only overlay like the ROI box.
+    // `lines` is an array of {x0,y0,x1,y1} normalized lines -- bakes all of them.
+    function bakeMeasureIntoDataURL(imgEl, lines) {
+      const canvas = document.createElement('canvas');
+      canvas.width = imgEl.naturalWidth;
+      canvas.height = imgEl.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0);
+      const ds = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
+      const lw = Math.max(2, Math.round(ds.w / 500));
+      const r = Math.max(3, Math.round(ds.w / 300));
+      const fontSize = Math.max(13, Math.round(ds.w / 100));
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      lines.forEach(norm => {
+        const x0 = norm.x0 * ds.w, y0 = norm.y0 * ds.h;
+        const x1 = norm.x1 * ds.w, y1 = norm.y1 * ds.h;
+        const label = fmtLen(Math.round(Math.hypot(x1 - x0, y1 - y0)));
+        ctx.strokeStyle = MEASURE_COLOR;
+        ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        [[x0, y0], [x1, y1]].forEach(([cx, cy]) => {
+          ctx.fillStyle = MEASURE_COLOR;
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        });
+        const midX = (x0 + x1) / 2, midY = (y0 + y1) / 2;
+        ctx.font = `400 ${fontSize}px "IBM Plex Mono", monospace`;
+        ctx.fillStyle = MEASURE_LABEL_COLOR;
+        ctx.fillText(label, midX, midY - r - 6);
+      });
+      return canvas.toDataURL('image/png');
+    }
+
     // Build a single PNG combining the full color-diff image, the ROI box(es) drawn on
     // top, and (if Compare Regions was used) the signal/background/SNR table beneath
     // it -- a self-contained "what was measured" image, used by both the ZIP and the
@@ -1973,7 +3181,7 @@
       const diffSize = getDiffPixelSize(img.naturalWidth, img.naturalHeight);
       const imgH = Math.round(diffSize.h * scale);
 
-      const cols = ['Region', 'Role', 'Mean', 'Peak', 'Std', 'Cov %', 'SNR(mean)', 'SNR(std)'];
+      const cols = ['Region', 'Role', 'Mean', 'Peak', 'Std', 'Cov %', 'SNR(mean)'];
       const rowH = 26, headerH = 30;
       const tableH = regions.length ? headerH + rowH * regions.length + 14
         : (boxes.length ? 40 : 0);
@@ -2020,7 +3228,7 @@
           ctx.fillStyle = r.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR;
           const vals = [
             r.name, r.role, r.mean, r.peak, r.std, r.coverage,
-            r.snr_mean == null ? '—' : r.snr_mean, r.snr_std == null ? '—' : r.snr_std,
+            r.snr_mean == null ? '-' : r.snr_mean,
           ];
           vals.forEach((v, ci) => ctx.fillText(String(v), ci * colW + 8, y + 18));
           y += rowH;
@@ -2032,7 +3240,7 @@
         ctx.font = '13px "IBM Plex Mono", monospace';
         ctx.fillStyle = '#ffffff';
         ctx.fillText(
-          `ROI -- Peak: ${d.stats.peak}  Mean: ${d.stats.mean}  Coverage: ${d.stats.coverage}%`,
+          `ROI   Peak: ${d.stats.peak}   Mean: ${d.stats.mean}   Coverage: ${d.stats.coverage}%`,
           10, y + tableH / 2 + 5,
         );
       }
@@ -2071,7 +3279,7 @@
     function getSignalCropBox() {
       const d = currentAnalysisData;
       if (!d || !d.runId) return null;
-      if (d.quickRoiBox) return d.quickRoiBox;
+      if (d.quickRoiBox && !boxMatchesBackgroundRegion(d.quickRoiBox, d.compareRoiBoxes)) return d.quickRoiBox;
       const signal = (d.compareRoiBoxes || []).filter(m => m.role !== 'background');
       if (!signal.length) return null;
       const x0 = Math.min(...signal.map(m => m.x));
@@ -2101,10 +3309,10 @@
       // near the bottom of the frame ends up partially cropping footer text instead of
       // image content.
       const diffSize = getDiffPixelSize(img.naturalWidth, img.naturalHeight);
-      const sx = Math.round(box.x * diffSize.w);
-      const sy = Math.round(box.y * diffSize.h);
-      const sw = Math.max(1, Math.round(box.w * diffSize.w));
-      const sh = Math.max(1, Math.round(box.h * diffSize.h));
+      const sx = Math.max(0, Math.min(Math.round(box.x * diffSize.w), diffSize.w - 1));
+      const sy = Math.max(0, Math.min(Math.round(box.y * diffSize.h), diffSize.h - 1));
+      const sw = Math.max(1, Math.min(Math.round(box.w * diffSize.w), diffSize.w - sx));
+      const sh = Math.max(1, Math.min(Math.round(box.h * diffSize.h), diffSize.h - sy));
 
       const canvas = document.createElement('canvas');
       canvas.width = sw;
@@ -2204,7 +3412,7 @@
       const rows = data.rois || [];
       const bg = data.background || {};
       const hasBg = bg.mean != null;
-      const fmt = (v) => (v == null ? '—' : v);
+      const fmt = (v) => (v == null ? '-' : v);
 
       tbodyEl.innerHTML = rows.map(r => {
         const isBg = r.role === 'background';
@@ -2213,16 +3421,16 @@
         return `<tr class="${isBg ? 'is-bg' : ''}">` +
           `<td class="roi-name-cell">${nm}</td><td>${roleTag}</td>` +
           `<td>${r.mean}</td><td>${r.peak}</td><td>${r.std}</td><td>${r.coverage}%</td>` +
-          `<td>${fmt(r.snr_mean)}</td><td>${fmt(r.snr_std)}</td></tr>`;
+          `<td>${fmt(r.snr_mean)}</td></tr>`;
       }).join('');
 
       if (hasBg) {
-        noteEl.textContent = `SNR (mean) = region mean ÷ background mean; SNR (std) = region mean ÷ background std. ` +
+        noteEl.textContent = `SNR (mean) = region mean ÷ background mean. ` +
           `Background: mean ${bg.mean}, std ${bg.std} (threshold ${data.threshold}). ` +
           `The background row itself reading ≈ 1 is normal.`;
       } else {
-        noteEl.textContent = 'No region is marked Background, so the SNR columns are blank. ' +
-          'Mark one quiet region as Background to fill them in.';
+        noteEl.textContent = 'No region is marked Background, so the SNR column is blank. ' +
+          'Mark one quiet region as Background to fill it in.';
       }
     }
 
@@ -2285,6 +3493,20 @@
       };
     });
 
+    // /suggest_params computes its noise_floor/threshold percentiles assuming the
+    // scoped region is mostly BACKGROUND (see its docstring) -- the opposite of
+    // getEffectiveRoiForAnalyze(), which is deliberately signal-scoped (the jet/
+    // plume box) for the headline stats. Reusing the signal ROI here fed the jet
+    // itself into a "what does noise look like" calculation, producing suggested
+    // values that were nonsense (way too high, since the jet's diff values are
+    // mostly signal, not noise). Prefer an explicit Background-role Compare
+    // Region instead; fall back to the whole image (no ROI) if none is tagged,
+    // never the signal box.
+    function getSuggestScopeRoi() {
+      const bg = multiRois.find(m => m.role === 'background');
+      return bg ? { x: bg.x, y: bg.y, w: bg.w, h: bg.h } : null;
+    }
+
     // Fill in every armed slider from /suggest_params. Runs once (one request covers
     // both values). Throws on failure so Analyze can surface the error and abort.
     async function applyAutoValues() {
@@ -2294,7 +3516,7 @@
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
       fd.append('test', testInput.files[0]);
-      const autoRoi = getEffectiveRoiForAnalyze();
+      const autoRoi = getSuggestScopeRoi();
       if (autoRoi) {
         fd.append('roi_x', autoRoi.x.toFixed(6));
         fd.append('roi_y', autoRoi.y.toFixed(6));
@@ -2368,7 +3590,13 @@
           const resCtrl = await fetch('/analyze', { method: 'POST', body: fdCtrl });
           if (resCtrl.ok) {
             const dataCtrl = await resCtrl.json();
-            controlResult = { runId: dataCtrl.run_id, stats: dataCtrl.stats };
+            // Keep the actual diff images too, not just the stats -- spatial
+            // continuity (is it a coherent shape or scattered noise?) can only be
+            // judged by looking at the baseline image itself, not the numbers alone.
+            controlResult = {
+              runId: dataCtrl.run_id, stats: dataCtrl.stats,
+              grayscale: dataCtrl.grayscale, color: dataCtrl.color,
+            };
           }
         } catch (err) { /* non-fatal, proceed without a control comparison */ }
       }
@@ -2395,7 +3623,7 @@
       }
 
       // Send whatever is currently drawn so the server logs it under this
-      // run's run_id — the single commit point for all three CSVs.
+      // run's run_id - the single commit point for all three CSVs.
       if (multiRois.length) {
         fd.append('rois', JSON.stringify(multiRois.map(m => ({
           name: m.name, role: m.role,
@@ -2411,7 +3639,7 @@
       fd.append('is_control', 'OFF');
 
       // If a Reference 2 bracketing shot was provided, the noise-baseline
-      // (Ref vs Ref2) stats were already computed above as controlResult —
+      // (Ref vs Ref2) stats were already computed above as controlResult -
       // forward them so the server can burn a "Noise Baseline" line into
       // this run's own output image footer, not just the results table.
       if (controlResult && controlResult.stats) {
@@ -2479,16 +3707,27 @@
           // actually analyzed, even if the user keeps editing boxes afterward.
           quickRoiBox: roiNorm ? { ...roiNorm } : null,
           compareRoiBoxes: multiRois.map(m => ({ name: m.name, role: m.role, x: m.x, y: m.y, w: m.w, h: m.h })),
+          calibPxPerMm: calibPxPerMm,
         };
 
         document.getElementById('grayImg').src = `data:image/png;base64,${data.grayscale}`;
         document.getElementById('colorImg').src = `data:image/png;base64,${data.color}`;
         document.getElementById('colorCmapName').textContent = displayFields.cmap;
         refreshRoiBoxUI();
+        resetMeasureState();
+
+        const controlPanel = document.getElementById('controlResultPanel');
+        if (controlResult && controlResult.grayscale) {
+          document.getElementById('controlGrayImg').src = `data:image/png;base64,${controlResult.grayscale}`;
+          document.getElementById('controlColorImg').src = `data:image/png;base64,${controlResult.color}`;
+          controlPanel.style.display = 'flex';
+        } else {
+          controlPanel.style.display = 'none';
+        }
 
         if (data.raw) document.getElementById('rawImg').src = `data:image/png;base64,${data.raw}`;
         if (data.thresholded) document.getElementById('threshImg').src = `data:image/png;base64,${data.thresholded}`;
-        // New run — collapse the optional views back down until requested again.
+        // New run - collapse the optional views back down until requested again.
         document.getElementById('rawBox').style.display = 'none';
         document.getElementById('threshBox').style.display = 'none';
         document.getElementById('showRawBtn').textContent = 'Show Raw';
@@ -2516,8 +3755,8 @@
         if (effectiveRoi) {
           const wp = (effectiveRoi.w * 100).toFixed(1);
           const hp = (effectiveRoi.h * 100).toFixed(1);
-          const source = roiNorm ? 'Quick ROI active' : 'Stats auto-scoped to Signal region(s) from Compare Regions';
-          roiBar.textContent = `${source}: ${wp}% × ${hp}% of the image. Stats come from inside that box only -- images below always show the full frame (use "Show ROI Box" to see where it is).`;
+          const source = roiNorm ? 'ROI active' : 'Stats scoped to your Signal regions';
+          roiBar.textContent = `${source}: ${wp}% × ${hp}% of the image. Numbers come from inside that box. The images below stay full frame, use "Show ROI Box" to see where it sits.`;
           roiBar.style.display = 'block';
         } else {
           roiBar.style.display = 'none';
@@ -2525,7 +3764,7 @@
 
         renderResultTable();
 
-        // Region table + line chart come straight from the /analyze response —
+        // Region table + line chart come straight from the /analyze response -
         // the same values the server just logged under this run_id.
         const roiPanel = document.getElementById('roiResultPanel');
         if (data.rois) {
@@ -2589,6 +3828,10 @@
         name: m.name, role: m.role,
         x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
       }))) : '';
+      const linePayload = lineNorm ? JSON.stringify({
+        x0: +lineNorm.x0.toFixed(6), y0: +lineNorm.y0.toFixed(6),
+        x1: +lineNorm.x1.toFixed(6), y1: +lineNorm.y1.toFixed(6),
+      }) : '';
 
       const sharedFields = {
         gas_type: document.getElementById('gasType').value,
@@ -2621,31 +3864,82 @@
           fd.append('roi_h', effectiveRoi.h.toFixed(6));
         }
         if (roisPayload) fd.append('rois', roisPayload);
+        if (linePayload) fd.append('line', linePayload);
         fd.append('is_control', 'OFF');
         fd.append('plasma_status', plasmaStatus);
         Object.entries(sharedFields).forEach(([key, val]) => fd.append(key, val));
         return fd;
       }
 
+      // Same "off/off" control request Single mode sends (Reference vs Reference 2,
+      // is_control=ON) -- through the same shared ROI/settings so its crop/threshold
+      // line up with the OFF/ON runs below. Optional: only sent if that photo was
+      // uploaded in the Noise Baseline zone (shared with Single mode's Card 1).
+      function buildCtrlFd() {
+        const fd = new FormData();
+        fd.append('reference', refInput.files[0]);
+        fd.append('test', ctrlRef2Input.files[0]);
+        fd.append('colormap', document.getElementById('colormapSel').value);
+        fd.append('gain', document.getElementById('gainSlider').value);
+        fd.append('threshold', document.getElementById('threshSlider').value);
+        fd.append('noise_floor', document.getElementById('floorSlider').value);
+        fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
+        fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
+        if (effectiveRoi) {
+          fd.append('roi_x', effectiveRoi.x.toFixed(6));
+          fd.append('roi_y', effectiveRoi.y.toFixed(6));
+          fd.append('roi_w', effectiveRoi.w.toFixed(6));
+          fd.append('roi_h', effectiveRoi.h.toFixed(6));
+        }
+        if (roisPayload) fd.append('rois', roisPayload);
+        fd.append('is_control', 'ON');
+        fd.append('gas_type', 'None');
+        fd.append('plasma_status', 'OFF');
+        fd.append('CamType', document.getElementById('camType').value);
+        fd.append('Focus', document.getElementById('focusSetting').value);
+        fd.append('Iso', document.getElementById('iso').value);
+        fd.append('Shutter', document.getElementById('shutter').value);
+        fd.append('Aperture', document.getElementById('aperture').value);
+        fd.append('NozDist', document.getElementById('nozDist').value);
+        fd.append('Light', document.getElementById('lighting').value);
+        fd.append('Notes', 'Noise baseline: Reference vs Reference 2, bracketing this Compare run');
+        return fd;
+      }
+
       try {
-        // Sequential, not parallel: run_id has 1-second resolution
-        // (datetime.now().strftime('%Y%m%d_%H%M%S')), so firing both requests at once
-        // risks the OFF and ON runs landing on the identical run_id and scrambling
-        // which roi_regions.csv/line_profiles.csv rows belong to which run once
-        // joined back by run_id. The short forced gap below guarantees they differ.
-        const startMs = Date.now();
+        // Used to force a >=1.1s sleep between these three requests: the server's
+        // run_id had only 1-second resolution, so firing them back-to-back risked two
+        // landing on the identical run_id and scrambling which roi_regions.csv/
+        // line_profiles.csv rows belonged to which run once joined back by run_id.
+        // run_id is now minted with microsecond resolution server-side, so that
+        // collision can no longer happen and the artificial delay was pure dead time
+        // (up to ~2.2s per Compare Analyze) -- removed. Still sequential (not
+        // Promise.all) since the server processes each /analyze synchronously anyway,
+        // and this keeps error handling simple (OFF's own error short-circuits before
+        // ON is even sent).
+        let controlResult = null;
+        if (ctrlRef2Input.files.length) {
+          try {
+            const resCtrl = await fetch('/analyze', { method: 'POST', body: buildCtrlFd() });
+            if (resCtrl.ok) {
+              const dataCtrl = await resCtrl.json();
+              controlResult = {
+                runId: dataCtrl.run_id, stats: dataCtrl.stats,
+                grayscale: dataCtrl.grayscale, color: dataCtrl.color,
+              };
+            }
+          } catch (err) { /* non-fatal, proceed without a control comparison */ }
+        }
+
         const resOff = await fetch('/analyze', { method: 'POST', body: buildFd(testInput.files[0], 'OFF') });
         if (!resOff.ok) throw new Error(`Plasma OFF run failed: server error ${resOff.status}`);
         const dataOff = await resOff.json();
-
-        const elapsedMs = Date.now() - startMs;
-        if (elapsedMs < 1100) await new Promise(r => setTimeout(r, 1100 - elapsedMs));
 
         const resOn = await fetch('/analyze', { method: 'POST', body: buildFd(testOnInput.files[0], 'ON') });
         if (!resOn.ok) throw new Error(`Plasma ON run failed: server error ${resOn.status}`);
         const dataOn = await resOn.json();
 
-        await renderCompareResults(dataOff, dataOn, effectiveRoi);
+        await renderCompareResults(dataOff, dataOn, effectiveRoi, controlResult);
 
         statusEl.textContent = 'Comparison complete.';
         document.body.classList.add('compare-results-mode');
@@ -2660,7 +3954,7 @@
     }
 
     function fmtRatio(onVal, offVal) {
-      if (typeof offVal !== 'number' || typeof onVal !== 'number' || offVal === 0) return '—';
+      if (typeof offVal !== 'number' || typeof onVal !== 'number' || offVal === 0) return '-';
       return (onVal / offVal).toFixed(2) + '×';
     }
 
@@ -2735,14 +4029,143 @@
       return { off, on };
     }
 
-    async function renderCompareResults(dataOff, dataOn, effectiveRoi) {
+    // ===== Compare mode: ROI box overlay toggle on the main Output Images =====
+    // Same idea as Single mode's toggleRoiBoxBtn/renderRoiBoxOverlays -- a DOM
+    // overlay (not baked into the PNG pixels) on each of the four images, so they
+    // stay full-frame by default but can show exactly where the boxes were.
+    let compareRoiBoxOverlayVisible = false;
+
+    function renderCompareRoiBoxOverlays() {
+      const d = currentCompareData;
+      if (!d) return;
+      const boxes = currentCompareRoiBoxes();
+      const diffOff = { w: d.off.image_width, h: d.off.image_height };
+      const diffOn = { w: d.on.image_width, h: d.on.image_height };
+      drawRoiBoxLayer(document.getElementById('compareOffImg'), document.getElementById('compareOffRoiLayer'), boxes, diffOff);
+      drawRoiBoxLayer(document.getElementById('compareOnImg'), document.getElementById('compareOnRoiLayer'), boxes, diffOn);
+      drawRoiBoxLayer(document.getElementById('compareOffGrayImg'), document.getElementById('compareOffGrayRoiLayer'), boxes, diffOff);
+      drawRoiBoxLayer(document.getElementById('compareOnGrayImg'), document.getElementById('compareOnGrayRoiLayer'), boxes, diffOn);
+    }
+
+    // Called after every fresh Compare Analyze: shows/hides the toggle button
+    // depending on whether there's anything to overlay, resets to hidden so each
+    // new comparison starts from the same full-image view.
+    function refreshCompareRoiBoxUI() {
+      const boxes = currentCompareRoiBoxes();
+      const btn = document.getElementById('toggleCompareRoiBoxBtn');
+      btn.style.display = boxes.length ? '' : 'none';
+      compareRoiBoxOverlayVisible = false;
+      btn.textContent = 'Show ROI Box';
+      ['compareOffRoiLayer', 'compareOnRoiLayer', 'compareOffGrayRoiLayer', 'compareOnGrayRoiLayer'].forEach(id => {
+        document.getElementById(id).classList.remove('visible');
+      });
+    }
+
+    document.getElementById('toggleCompareRoiBoxBtn').onclick = () => {
+      compareRoiBoxOverlayVisible = !compareRoiBoxOverlayVisible;
+      document.getElementById('toggleCompareRoiBoxBtn').textContent = compareRoiBoxOverlayVisible ? 'Hide ROI Box' : 'Show ROI Box';
+      ['compareOffRoiLayer', 'compareOnRoiLayer', 'compareOffGrayRoiLayer', 'compareOnGrayRoiLayer'].forEach(id => {
+        document.getElementById(id).classList.toggle('visible', compareRoiBoxOverlayVisible);
+      });
+      if (compareRoiBoxOverlayVisible) renderCompareRoiBoxOverlays();
+    };
+
+    window.addEventListener('resize', debounce(() => {
+      if (compareRoiBoxOverlayVisible) renderCompareRoiBoxOverlays();
+    }, 150));
+
+    // ===== Compare mode: Show Raw / Show Thresholded =====
+    document.getElementById('showCompareRawBtn').onclick = () => toggleImageBox('compareRawBox', 'showCompareRawBtn', 'Show Raw', 'Hide Raw');
+    document.getElementById('showCompareThreshBtn').onclick = () => toggleImageBox('compareThreshBox', 'showCompareThreshBtn', 'Show Thresholded', 'Hide Thresholded');
+
+    // ===== Compare mode: Show Zoomed Signal ROI =====
+    // Same union-of-signal-regions convention as Single mode's getSignalCropBox(),
+    // read from the snapshot frozen on currentCompareData at render time.
+    function getCompareSignalCropBox() {
+      const d = currentCompareData;
+      if (!d) return null;
+      if (d.quickRoiBox && !boxMatchesBackgroundRegion(d.quickRoiBox, d.compareRoiBoxes)) return d.quickRoiBox;
+      const signal = (d.compareRoiBoxes || []).filter(m => m.role !== 'background');
+      if (!signal.length) return null;
+      const x0 = Math.min(...signal.map(m => m.x));
+      const y0 = Math.min(...signal.map(m => m.y));
+      const x1 = Math.max(...signal.map(m => m.x + m.w));
+      const y1 = Math.max(...signal.map(m => m.y + m.h));
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+
+    // Crops directly from the full-resolution color diff (no downscale), one per
+    // run, both cropped to the same shared box so they're directly comparable.
+    async function buildCompareSignalCropDataURLs() {
+      const d = currentCompareData;
+      const box = getCompareSignalCropBox();
+      if (!d || !box || box.w <= 0 || box.h <= 0) return { off: null, on: null };
+
+      async function loadImg(base64) {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve; img.onerror = reject;
+          img.src = `data:image/png;base64,${base64}`;
+        });
+        return img;
+      }
+
+      async function cropOne(run) {
+        const img = await loadImg(run.color);
+        const diffSize = { w: run.image_width || img.naturalWidth, h: run.image_height || img.naturalHeight };
+        const sx = Math.max(0, Math.min(Math.round(box.x * diffSize.w), diffSize.w - 1));
+        const sy = Math.max(0, Math.min(Math.round(box.y * diffSize.h), diffSize.h - 1));
+        const sw = Math.max(1, Math.min(Math.round(box.w * diffSize.w), diffSize.w - sx));
+        const sh = Math.max(1, Math.min(Math.round(box.h * diffSize.h), diffSize.h - sy));
+        const canvas = document.createElement('canvas');
+        canvas.width = sw;
+        canvas.height = sh;
+        canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+        return canvas.toDataURL('image/png');
+      }
+
+      const [off, on] = await Promise.all([cropOne(d.off), cropOne(d.on)]);
+      return { off, on };
+    }
+
+    let compareSignalRoiCropRunId = null; // cache key so re-toggling doesn't rebuild every click
+
+    document.getElementById('showCompareSignalRoiBtn').onclick = async () => {
+      const box = document.getElementById('compareSignalRoiBox');
+      const btn = document.getElementById('showCompareSignalRoiBtn');
+      const visible = box.style.display !== 'none';
+      if (visible) {
+        box.style.display = 'none';
+        btn.textContent = 'Show Zoomed Signal ROI';
+        return;
+      }
+      const cacheKey = currentCompareData ? `${currentCompareData.off.run_id}_${currentCompareData.on.run_id}` : null;
+      if (compareSignalRoiCropRunId !== cacheKey) {
+        btn.textContent = 'Building...';
+        btn.disabled = true;
+        try {
+          const crops = await buildCompareSignalCropDataURLs();
+          if (!crops.off && !crops.on) { btn.disabled = false; btn.textContent = 'Show Zoomed Signal ROI'; return; }
+          document.getElementById('compareOffSignalRoiImg').src = crops.off || '';
+          document.getElementById('compareOnSignalRoiImg').src = crops.on || '';
+          compareSignalRoiCropRunId = cacheKey;
+        } finally {
+          btn.disabled = false;
+        }
+      }
+      box.style.display = 'flex';
+      btn.textContent = 'Hide Zoomed ROI';
+    };
+
+    async function renderCompareResults(dataOff, dataOn, effectiveRoi, controlResult) {
       currentCompareData = {
-        off: dataOff, on: dataOn, roi: effectiveRoi,
+        off: dataOff, on: dataOn, roi: effectiveRoi, control: controlResult,
         // Snapshot of exactly what was drawn for this pair of runs, frozen here so
         // the ROI overlay image (on-screen and in the ZIP) always matches what was
         // actually analyzed, even if boxes keep getting edited afterward.
         quickRoiBox: roiNorm ? { ...roiNorm } : null,
         compareRoiBoxes: multiRois.map(m => ({ name: m.name, role: m.role, x: m.x, y: m.y, w: m.w, h: m.h })),
+        calibPxPerMm: calibPxPerMm,
         roiOverlayOffDataUrl: null,
         roiOverlayOnDataUrl: null,
       };
@@ -2751,6 +4174,32 @@
       document.getElementById('compareOnImg').src = `data:image/png;base64,${dataOn.color}`;
       document.getElementById('compareOffGrayImg').src = `data:image/png;base64,${dataOff.grayscale}`;
       document.getElementById('compareOnGrayImg').src = `data:image/png;base64,${dataOn.grayscale}`;
+      refreshCompareRoiBoxUI();
+
+      if (dataOff.raw) document.getElementById('compareOffRawImg').src = `data:image/png;base64,${dataOff.raw}`;
+      if (dataOn.raw) document.getElementById('compareOnRawImg').src = `data:image/png;base64,${dataOn.raw}`;
+      if (dataOff.thresholded) document.getElementById('compareOffThreshImg').src = `data:image/png;base64,${dataOff.thresholded}`;
+      if (dataOn.thresholded) document.getElementById('compareOnThreshImg').src = `data:image/png;base64,${dataOn.thresholded}`;
+      // New comparison -- collapse the optional views back down until requested again.
+      document.getElementById('compareRawBox').style.display = 'none';
+      document.getElementById('compareThreshBox').style.display = 'none';
+      document.getElementById('showCompareRawBtn').textContent = 'Show Raw';
+      document.getElementById('showCompareThreshBtn').textContent = 'Show Thresholded';
+
+      document.getElementById('compareSignalRoiBox').style.display = 'none';
+      const compareSignalRoiBtn = document.getElementById('showCompareSignalRoiBtn');
+      compareSignalRoiBtn.textContent = 'Show Zoomed Signal ROI';
+      compareSignalRoiBtn.style.display = getCompareSignalCropBox() ? '' : 'none';
+      compareSignalRoiCropRunId = null;
+
+      const controlPanel = document.getElementById('compareControlPanel');
+      if (controlResult && controlResult.grayscale) {
+        document.getElementById('compareControlGrayImg').src = `data:image/png;base64,${controlResult.grayscale}`;
+        document.getElementById('compareControlColorImg').src = `data:image/png;base64,${controlResult.color}`;
+        controlPanel.style.display = 'flex';
+      } else {
+        controlPanel.style.display = 'none';
+      }
 
       const roiPanel = document.getElementById('compareRoiPanel');
       const wholePanel = document.getElementById('compareWholePanel');
@@ -2773,12 +4222,12 @@
           const tr = document.createElement('tr');
           if (rOff.role === 'background') tr.classList.add('is-bg');
           tr.innerHTML = `
-            <td class="roi-name-cell">${rOff.name}</td>
-            <td><span class="role-tag ${rOff.role}">${rOff.role}</span></td>
-            <td class="grp-start">${rOff.mean}</td><td>${rOn.mean ?? '—'}</td><td>${fmtRatio(rOn.mean, rOff.mean)}</td>
-            <td class="grp-start">${rOff.peak}</td><td>${rOn.peak ?? '—'}</td><td>${fmtRatio(rOn.peak, rOff.peak)}</td>
-            <td class="grp-start">${rOff.coverage}%</td><td>${rOn.coverage ?? '—'}%</td><td>${fmtRatio(rOn.coverage, rOff.coverage)}</td>
-            <td class="grp-start">${rOff.snr_mean ?? '—'}</td><td>${rOn.snr_mean ?? '—'}</td><td>${fmtRatio(rOn.snr_mean, rOff.snr_mean)}</td>
+            <td class="roi-name-cell">${esc(rOff.name)}</td>
+            <td><span class="role-tag ${rOff.role === 'background' ? 'background' : 'signal'}">${esc(rOff.role)}</span></td>
+            <td class="grp-start">${rOff.mean}</td><td>${rOn.mean ?? '-'}</td><td>${fmtRatio(rOn.mean, rOff.mean)}</td>
+            <td class="grp-start">${rOff.peak}</td><td>${rOn.peak ?? '-'}</td><td>${fmtRatio(rOn.peak, rOff.peak)}</td>
+            <td class="grp-start">${rOff.coverage}%</td><td>${rOn.coverage ?? '-'}%</td><td>${fmtRatio(rOn.coverage, rOff.coverage)}</td>
+            <td class="grp-start">${rOff.snr_mean ?? '-'}</td><td>${rOn.snr_mean ?? '-'}</td><td>${fmtRatio(rOn.snr_mean, rOff.snr_mean)}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -2794,6 +4243,21 @@
           <tr><td>Coverage %</td><td>${sOff.coverage}%</td><td>${sOn.coverage}%</td><td>${fmtRatio(sOn.coverage, sOff.coverage)}</td></tr>
         `;
         wholePanel.style.display = 'flex';
+      }
+
+      const linePanel = document.getElementById('compareLinePanel');
+      if (dataOff.line && dataOn.line) {
+        // Shared Y scale across both charts so OFF vs ON peak heights compare directly.
+        const sharedYMax = Math.max(10,
+          ...(dataOff.line.values || []), ...(dataOff.line.smoothed || []),
+          ...(dataOn.line.values || []), ...(dataOn.line.smoothed || []));
+        drawLineChart(dataOff.line, 'compareLineChartOff', sharedYMax);
+        drawLineChart(dataOn.line, 'compareLineChartOn', sharedYMax);
+        document.getElementById('compareLineOffHint').textContent = lineProfileSummary(dataOff.line);
+        document.getElementById('compareLineOnHint').textContent = lineProfileSummary(dataOn.line);
+        linePanel.style.display = 'flex';
+      } else {
+        linePanel.style.display = 'none';
       }
     }
 
@@ -2892,10 +4356,10 @@
           ctx.fillStyle = r.role === 'background' ? MROI_BG_COLOR : MROI_SIGNAL_COLOR;
           const vals = [
             r.name, r.role,
-            r.mean, rOn.mean ?? '—', fmtRatio(rOn.mean, r.mean),
-            r.peak, rOn.peak ?? '—', fmtRatio(rOn.peak, r.peak),
-            r.coverage, rOn.coverage ?? '—', fmtRatio(rOn.coverage, r.coverage),
-            r.snr_mean ?? '—', rOn.snr_mean ?? '—', fmtRatio(rOn.snr_mean, r.snr_mean),
+            r.mean, rOn.mean ?? '-', fmtRatio(rOn.mean, r.mean),
+            r.peak, rOn.peak ?? '-', fmtRatio(rOn.peak, r.peak),
+            r.coverage, rOn.coverage ?? '-', fmtRatio(rOn.coverage, r.coverage),
+            r.snr_mean ?? '-', rOn.snr_mean ?? '-', fmtRatio(rOn.snr_mean, r.snr_mean),
           ];
           vals.forEach((v, ci) => ctx.fillText(String(v), ci * colWidth + 8, y + 17));
           y += rowH;
@@ -2961,9 +4425,28 @@
         zip.file("diff_color_plasma_off.png", off.color, { base64: true });
         zip.file("diff_color_plasma_on.png", on.color, { base64: true });
 
+        // Thresholded (binary mask) diffs, same images as the "Show Thresholded" toggle.
+        if (off.thresholded) zip.file("diff_thresholded_plasma_off.png", off.thresholded, { base64: true });
+        if (on.thresholded) zip.file("diff_thresholded_plasma_on.png", on.thresholded, { base64: true });
+
+        // Noise baseline (Reference vs Reference 2), if that optional shot was
+        // uploaded -- same images shown in the Noise Baseline panel.
+        if (d.control && d.control.grayscale) {
+          zip.file("noise_baseline_grayscale.png", d.control.grayscale, { base64: true });
+          zip.file("noise_baseline_color.png", d.control.color, { base64: true });
+        }
+
         const summaryDataUrl = await buildCompareSummaryDataURL();
         if (summaryDataUrl) {
           zip.file("plasma_compare_summary.png", summaryDataUrl.split(',')[1], { base64: true });
+        }
+
+        // Full-res crop of just the signal ROI, OFF and ON (same images as
+        // "Show Zoomed Signal ROI"), skipped if no quick ROI or signal region.
+        if (getCompareSignalCropBox()) {
+          const signalCrops = await buildCompareSignalCropDataURLs();
+          if (signalCrops.off) zip.file("signal_roi_zoom_plasma_off.png", signalCrops.off.split(',')[1], { base64: true });
+          if (signalCrops.on) zip.file("signal_roi_zoom_plasma_on.png", signalCrops.on.split(',')[1], { base64: true });
         }
 
         const csvEsc = v => `"${(v === null || v === undefined ? '' : v).toString().replace(/"/g, '""')}"`;
@@ -3004,6 +4487,21 @@
           ["run_id", "roi_name", "role", "mean", "peak", "std", "coverage", "snr_mean", "snr_std"],
           roiRows
         ));
+
+        // One row per run (OFF, ON) if a line was drawn -- same columns as
+        // Single mode's line_profiles.csv, so both join the same way.
+        if (off.line && on.line) {
+          zip.file("line_profiles.csv", makeCsv(
+            ["run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise",
+             "px_per_mm", "length_mm", "width_mm"],
+            [off, on].map(r => [
+              r.run_id, r.line.x0, r.line.y0, r.line.x1, r.line.y1, r.line.length_px,
+              r.line.peak, r.line.mean, r.line.width_px, r.line.denoise ? 'ON' : 'OFF',
+              d.calibPxPerMm ? +d.calibPxPerMm.toFixed(4) : '',
+              pxToMm(r.line.length_px, d.calibPxPerMm), pxToMm(r.line.width_px, d.calibPxPerMm),
+            ])
+          ));
+        }
 
         const blob = await zip.generateAsync({ type: "blob" });
         const url = URL.createObjectURL(blob);
@@ -3049,6 +4547,7 @@
         ['Mean Diff', s.mean],
         ['Coverage %', s.coverage != null ? s.coverage + '%' : ''],
         ['ROI', roiTxt],
+        ['Scale', d.calibPxPerMm ? `${d.calibPxPerMm.toFixed(2)} px/mm` : 'not set'],
         ...controlRows,
         ['group', 'Experiment'],
         ['Gas Type', d.log.gas_type],
@@ -3080,8 +4579,8 @@
       const tbody = document.getElementById('resultTableBody');
       tbody.innerHTML = rows.map(([k, v]) => {
         if (k === 'group') return `<tr class="grp"><td colspan="2">${v}</td></tr>`;
-        const val = (v === undefined || v === null || v === '') ? '—' : String(v);
-        const cls = val === '—' ? 'v empty' : 'v';
+        const val = (v === undefined || v === null || v === '') ? '-' : String(v);
+        const cls = val === '-' ? 'v empty' : 'v';
         return `<tr><td class="k">${k}</td><td class="${cls}">${val.replace(/</g, '&lt;')}</td></tr>`;
       }).join('');
     }
@@ -3102,8 +4601,24 @@
         const zip = new JSZip();
 
         const cmap = currentAnalysisData.display.cmap;
-        zip.file("diff_grayscale.png", currentAnalysisData.grayBase64, { base64: true });
-        zip.file(`diff_color_${cmap}.png`, currentAnalysisData.colorBase64, { base64: true });
+        // If any Measure lines were drawn, bake them into that export so the
+        // ZIP keeps a record of what was measured (raw base64 used otherwise).
+        const grayDataUrl = measureLines.gray.length ? bakeMeasureIntoDataURL(document.getElementById('grayImg'), measureLines.gray) : null;
+        zip.file("diff_grayscale.png", grayDataUrl ? grayDataUrl.split(',')[1] : currentAnalysisData.grayBase64, { base64: true });
+        const colorDataUrl = measureLines.color.length ? bakeMeasureIntoDataURL(document.getElementById('colorImg'), measureLines.color) : null;
+        zip.file(`diff_color_${cmap}.png`, colorDataUrl ? colorDataUrl.split(',')[1] : currentAnalysisData.colorBase64, { base64: true });
+
+        // Thresholded (binary mask) diff, same image as the "Show Thresholded" toggle.
+        if (currentAnalysisData.thresholdedBase64) {
+          zip.file("diff_thresholded.png", currentAnalysisData.thresholdedBase64, { base64: true });
+        }
+
+        // Noise baseline (Reference vs Reference 2) diff images, if that optional
+        // shot was uploaded -- same images now shown in the Noise Baseline panel.
+        if (currentAnalysisData.control && currentAnalysisData.control.grayscale) {
+          zip.file("noise_baseline_grayscale.png", currentAnalysisData.control.grayscale, { base64: true });
+          zip.file("noise_baseline_color.png", currentAnalysisData.control.color, { base64: true });
+        }
 
         // Full image + ROI box(es) + region table baked in, same as the standalone
         // "Download ROI Summary" button. Skipped if this run had no quick ROI or
@@ -3111,6 +4626,15 @@
         const roiSummaryDataUrl = await buildRoiSummaryDataURL();
         if (roiSummaryDataUrl) {
           zip.file("roi_summary.png", roiSummaryDataUrl.split(',')[1], { base64: true });
+        }
+
+        // Full-res crop of just the signal ROI (same image as "Show Zoomed
+        // Signal ROI"), skipped if this run had no quick ROI or signal region.
+        if (getSignalCropBox()) {
+          const signalRoiDataUrl = await buildSignalRoiCropDataURL();
+          if (signalRoiDataUrl) {
+            zip.file("signal_roi_zoom.png", signalRoiDataUrl.split(',')[1], { base64: true });
+          }
         }
 
         // Three CSVs with ONLY this run's rows, same columns and run_id as the
@@ -3145,9 +4669,12 @@
 
         const li = cad.line;
         zip.file("line_profiles.csv", makeCsv(
-          ["run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise"],
+          ["run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise",
+           "px_per_mm", "length_mm", "width_mm"],
           li ? [[runId, li.x0, li.y0, li.x1, li.y1, li.length_px, li.peak, li.mean,
-                 li.width_px, li.denoise ? 'ON' : 'OFF']] : []
+                 li.width_px, li.denoise ? 'ON' : 'OFF',
+                 cad.calibPxPerMm ? +cad.calibPxPerMm.toFixed(4) : '',
+                 pxToMm(li.length_px, cad.calibPxPerMm), pxToMm(li.width_px, cad.calibPxPerMm)]] : []
         ));
 
         const blob = await zip.generateAsync({ type: "blob" });

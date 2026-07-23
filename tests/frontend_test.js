@@ -24,7 +24,17 @@ try {
   process.exit(0);
 }
 
-const HTML = fs.readFileSync(path.join(__dirname, '..', 'static', 'index.html'), 'utf8');
+// The page now loads its CSS and JS from separate files under static/css and
+// static/js (see index.html). jsdom does not fetch those external resources, so
+// reconstruct the equivalent inlined page here: replace the <link>/<script src>
+// tags with their file contents, keeping each JS file as its OWN <script> block
+// and in document order, so per-script load semantics match a real browser.
+const STATIC = path.join(__dirname, '..', 'static');
+const HTML = fs.readFileSync(path.join(STATIC, 'index.html'), 'utf8')
+  .replace(/<link rel="stylesheet" href="\/static\/css\/([^"]+)"[^>]*>/,
+    (_m, f) => `<style>\n${fs.readFileSync(path.join(STATIC, 'css', f), 'utf8')}\n</style>`)
+  .replace(/<script src="\/static\/js\/([^"]+)"><\/script>/g,
+    (_m, f) => `<script>\n${fs.readFileSync(path.join(STATIC, 'js', f), 'utf8')}\n</script>`);
 
 let pass = 0, fail = 0;
 const ck = (n, c) => { if (c) { pass++; console.log('PASS ' + n); } else { fail++; console.log('FAIL ' + n); } };

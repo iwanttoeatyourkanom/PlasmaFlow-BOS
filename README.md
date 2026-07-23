@@ -65,6 +65,24 @@ tests/frontend_test.js` (needs `npm install jsdom`).
 ## Layout
 
 - `main.py` FastAPI backend: image diff, stats, endpoints, CSV logging.
-- `static/index.html` single-page frontend (UI, canvases, charts, exports).
+- `static/index.html` page markup only.
+- `static/css/style.css` all styles.
+- `static/js/` frontend logic, split into feature modules loaded in order by
+  `index.html`:
+  - `core.js` bootstrap: shared state, mode toggle, sliders, keyboard, fullscreen.
+  - `canvas-zoom.js` zoom-to-draw modal + Measure wizard navigation.
+  - `roi.js` Raw/Thresholded toggles, ROI-selection canvas, diff preview.
+  - `scale.js` mm scale calibration.
+  - `upload.js` file upload and previews.
+  - `regions.js` named signal/background regions (SNR) + ROI-box overlays.
+  - `measure.js` free-hand Measure tool.
+  - `signal-roi.js` full-resolution signal-ROI crop.
+  - `persist.js` metadata field persistence.
+  - `analyze.js` Auto sliders + single-run Analyze.
+  - `compare.js` Plasma On/Off compare.
+  - `export.js` ZIP export + result summary table.
 - `bg_patterns/` printable speckle backgrounds.
 - `tests/` backend and frontend regression tests.
+
+The frontend is plain browser JavaScript with no build step. The modules share one
+global scope, so the load order in `index.html` matters — keep it if you add a file.

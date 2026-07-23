@@ -19,10 +19,14 @@ Endpoint tests need `httpx` (`pip install httpx`); without it they skip.
 
 ## Frontend (JavaScript)
 
-Loads `static/index.html` in a headless DOM, checks it starts with no errors,
-exercises the UI wiring (mode toggle, guide tabs, sliders, collapsible cards,
-keyboard shortcut), and drives the result-render path including an
-XSS-escaping check.
+Loads the page in a headless DOM, checks it starts with no errors, exercises the
+UI wiring (mode toggle, guide tabs, sliders, collapsible cards, keyboard
+shortcut), and drives the result-render path including an XSS-escaping check.
+
+The frontend is split across `static/css/style.css` and `static/js/*.js`, which
+jsdom does not fetch. The test rebuilds the equivalent inlined page by reading
+those files and injecting them — each JS module as its own `<script>` block, in
+`index.html` order — so per-script load semantics match a real browser.
 
 ```
 npm install jsdom      # one time
@@ -34,5 +38,5 @@ Without jsdom the suite skips cleanly.
 ## What to run after changing code
 
 - Edited `main.py` -> run the Python suite.
-- Edited `static/index.html` -> run the frontend suite, and a syntax check:
-  extract the `<script>` block and run `node --check` on it.
+- Edited `static/js/*.js`, `static/css/style.css`, or `static/index.html` -> run
+  the frontend suite, and `node --check` each changed JS module.

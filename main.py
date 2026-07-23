@@ -76,10 +76,8 @@ def _phase_corr_shift(ref_patch: np.ndarray, test_patch: np.ndarray) -> tuple:
 def _estimate_shift(ref_gray: np.ndarray, test_gray: np.ndarray) -> dict:
     """Estimate a whole-frame rigid shift from the four corner patches only.
 
-    The jet's own real signal lives away from the corners, so corner-only patches avoid
-    letting the BOS signal bias the shift estimate (and then get subtracted out as noise).
-    Returns the median (dx, dy) across corners plus each corner's own estimate for transparency.
-    Images too small to carve out a real corner patch (any side < 4 px) skip alignment.
+    Corners avoid the jet in the middle, so the BOS signal doesn't bias the shift.
+    Returns the median (dx, dy) plus each corner's estimate. Tiny images (< 4 px) skip.
     """
     H, W = ref_gray.shape
     if H < 4 or W < 4:
@@ -109,18 +107,12 @@ def _estimate_shift(ref_gray: np.ndarray, test_gray: np.ndarray) -> dict:
 
 def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, align: bool = False,
                   denoise: bool = False):
-    """Decode ref/test images and return (diff, shift_info) as their grayscale absolute difference.
+    """Grayscale absolute difference of ref/test. Returns (diff, shift_info).
 
-    Shared by run_bos, /suggest_params, /analyze_rois, /diff_preview. roi_norm,
-    if given, is normalized (x, y, w, h) 0-1; both images are cropped to it first. If align is
-    True, a whole-frame translation (measured from the four corners only, see _estimate_shift)
-    is applied to test before diffing, and shift_info is the returned dict; otherwise shift_info
-    is None and behavior is bit-identical to before this option existed.
-
-    If denoise is True, a median blur (MEDIAN_KSIZE) is applied to the diff itself before it's
-    returned -- like align, this is a real preprocessing step (it changes peak/mean/coverage,
-    not just the rendered image), distinct from the display-only noise_floor slider. Skipped on
-    crops smaller than the kernel (e.g. a tiny ROI) rather than raising.
+    Shared by run_bos, /suggest_params, /analyze_rois, /diff_preview. roi_norm (normalized
+    x,y,w,h) crops both images first. align warps test back by the corner-measured shift
+    (shift_info holds it, else None). denoise median-blurs the diff — a real preprocessing
+    step that moves peak/mean/coverage, unlike the display-only noise_floor.
     """
     ref = cv2.imdecode(np.frombuffer(ref_bytes, np.uint8), cv2.IMREAD_COLOR)
     test = cv2.imdecode(np.frombuffer(test_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -177,25 +169,15 @@ def run_bos(
 ) -> tuple:
     """Compute the BOS diff and return (rendered images + stats dict, diff_full).
 
-    Stats always come from the raw diff (after align/denoise preprocessing, if enabled), never
-    the display-adjusted render (colormap/gain/noise_floor).
-
-    roi_norm no longer crops any pixels out of the rendered images -- every run's grayscale/
-    color/raw/thresholded output is always the full frame, so jet position and framing stay
-    comparable across runs (needed to check repeatability). roi_norm still scopes what the
-    peak/mean/coverage stats are computed from: if given, they're computed from just that
-    region of the diff via _crop_diff, same numbers as before, just no longer tied to what
-    the image shows.
-
-    diff_full (the full-frame diff array, after this call's align/denoise) is returned
-    alongside the dict so callers that also need to sample it (e.g. /analyze's ROI list)
-    can reuse it instead of paying for a second identical decode+align+diff.
+    Stats come from the raw diff (after align/denoise), never the display render.
+    The rendered images are always full-frame so framing stays comparable across runs;
+    roi_norm only scopes which pixels the peak/mean/coverage stats use. diff_full is
+    returned so callers (e.g. /analyze's ROI list) can reuse it instead of recomputing.
     """
     diff_full, shift_info = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
-    img_h, img_w = diff_full.shape  # pre-footer size, in pixels -- the served PNGs are taller than
-    # this once _stamp_footer appends its footer band below, so the client needs this to convert
-    # normalized (0-1) ROI coordinates (which are fractions of THIS, not of the served PNG) back
-    # into pixels correctly, e.g. when cropping a region out of the returned image client-side.
+    # Pre-footer size: the served PNG is taller (footer band), and normalized ROI coords
+    # are fractions of this, so the client needs it to map them back to pixels.
+    img_h, img_w = diff_full.shape
     stats_diff = _crop_diff(diff_full, roi_norm) if roi_norm is not None else diff_full
 
     # peak = 99th percentile, a robust max that ignores lone noise pixels.
@@ -222,18 +204,13 @@ def run_bos(
     if roi_norm is not None:
         _, _, nw, nh = roi_norm
         roi_text = f" | ROI: {nw * 100:.0f}%x{nh * 100:.0f}%"
-    # Settings on their own line, computed result values on the line below. Cov gets the
-    # threshold it was counted against in parentheses right next to it, so the number is
-    # self-explanatory without having to cross-reference the settings line above.
+    # Settings on one line, results on the next; Cov shows its threshold inline.
     footer = [
         f"Cmap: {colormap.upper()} | Gain: {gain}x | NoiseFloor: {noise_floor} | "
         f"Thresh: {threshold} | {align_text} | {denoise_text}{roi_text}",
         f"Peak: {peak} | Mean: {mean} | Cov: {coverage}% (diff>{threshold})",
     ]
-    # If a bracketed noise baseline (Reference vs Reference 2) was computed for this run,
-    # burn its peak/mean into the image too -- not just the separate result table -- so
-    # the "is this above the noise floor" comparison travels with the image itself
-    # (ZIP, downloads, screenshots) instead of only living in the live UI.
+    # Stamp the noise baseline into the image too, so the comparison travels with it.
     if control_peak is not None and control_mean is not None:
         footer.append(f"Noise Baseline (Ref1 vs Ref2): Peak: {control_peak}, Mean: {control_mean}")
 
@@ -242,21 +219,13 @@ def run_bos(
     _, gray_buf = cv2.imencode(".png", final_gray)
     _, color_buf = cv2.imencode(".png", final_color)
 
-    # Raw view: the genuinely untouched difference -- no align, no denoise, no noise
-    # floor/gain -- regardless of what the align/denoise toggles above are set to. This
-    # is a fixed "before" reference so align/denoise's effect can actually be seen by
-    # comparing it against the main grayscale/color/thresholded views. Needs a fresh
-    # align=False/denoise=False computation whenever this run's own align/denoise were
-    # on (since diff_full then has those baked in) -- but if they were already both off,
-    # diff_full already IS that computation, so it's reused instead (see below). Stats
-    # still scoped to roi_norm, same as the main stats above; the image itself is full.
+    # Raw view: the untouched diff (no align/denoise/floor/gain) as a fixed "before"
+    # reference. Recompute only if this run had align/denoise on; otherwise diff_full
+    # already is the raw diff and gets reused.
     if align or denoise:
         diff_raw_full, _ = compute_diff(ref_bytes, test_bytes, None, align=False, denoise=False)
     else:
-        # This run's own align/denoise were already both off, so diff_full above (computed
-        # with align=False, denoise=False) is already byte-identical to what a fresh
-        # align=False/denoise=False call would produce -- reuse it instead of decoding and
-        # diffing the same two images a second time.
+        # align/denoise were off, so diff_full already is the raw diff — reuse it.
         diff_raw_full = diff_full
     raw_stats_diff = _crop_diff(diff_raw_full, roi_norm) if roi_norm is not None else diff_raw_full
     raw_peak = int(round(float(np.percentile(raw_stats_diff, 99))))
@@ -305,12 +274,10 @@ def run_bos(
 
 
 def _stamp_footer(img, lines):
-    """Stamp a parameter footer onto an image (works for gray or BGR).
+    """Stamp a parameter footer onto an image (gray or BGR).
 
-    lines: list of logical footer lines (each a string with segments joined by
-    " | "), rendered one below another -- e.g. settings on one line, computed
-    result values (Peak/Mean/Cov/...) on the next. A line too wide for the
-    image is further wrapped onto continuation rows.
+    lines: footer rows with segments joined by " | ". A row too wide for the image
+    wraps onto continuation rows.
     """
     h, w = img.shape[:2]
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -327,9 +294,7 @@ def _stamp_footer(img, lines):
             candidate = f"{current} | {seg}" if current else seg
             if current and cv2.getTextSize(candidate, font, font_scale, thickness)[0][0] + 40 > w:
                 rows.append(current)
-                # Keep a leading "|" on the wrapped continuation so it visibly reads as
-                # "still part of the line above" instead of looking like a new, separate
-                # stat -- this is what was confusing when e.g. "Denoise: ON" wrapped alone.
+                # Lead the continuation with "|" so it reads as part of the line above.
                 current = f"| {seg}"
             else:
                 current = candidate
@@ -408,10 +373,7 @@ async def analyze(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # ROI list samples the full-image diff -- reuses the diff_full run_bos
-    # already computed above (same ref/test/align/denoise) instead of recomputing it a
-    # second time, which used to also mean re-running the 4-corner phase-correlation
-    # alignment a second time whenever Align was on.
+    # ROI list samples diff_full (already computed by run_bos) rather than recomputing.
     roi_result = None
     if rois:
         try:
@@ -424,14 +386,10 @@ async def analyze(
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
 
-    # --- Commit this run to the three linked CSVs (one shared run_id) ---
+    # --- Commit this run to the linked CSVs (one shared run_id) ---
     now = datetime.now()
-    # Microsecond resolution, not just seconds: two /analyze calls landing in the same
-    # second (e.g. Compare mode's OFF/ON pair, or the optional Noise Baseline run) used to
-    # be able to mint the identical run_id, silently scrambling which roi_regions.csv
-    # rows belonged to which run once joined back by run_id. The frontend
-    # previously worked around this by force-sleeping >=1.1s between requests; this makes
-    # that workaround unnecessary since collisions are no longer possible in practice.
+    # Microsecond resolution so rapid calls (Compare's OFF/ON pair, the baseline run)
+    # can't collide on the same run_id and scramble the CSV join.
     run_id = now.strftime("%Y%m%d_%H%M%S_%f")
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 

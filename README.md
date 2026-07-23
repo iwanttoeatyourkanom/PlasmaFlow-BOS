@@ -15,8 +15,7 @@ sizes in millimetres.
 - Plasma On/Off compare: one reference vs two tests (off and on), same settings, side by side.
 - ROI and named signal/background regions with an SNR table.
 - Noise baseline: a second flow-off shot to show how much of a result is just noise.
-- Line profile across the jet, with peak and half-max width.
-- Scale calibration so lengths read in millimetres.
+- Scale calibration so lengths read in millimetres, plus a Measure tool for ad-hoc length readouts.
 - Alignment (corner-based), denoise, adjustable colormap, gain, threshold.
 - One-click export: diff images plus CSV logs, bundled in a ZIP.
 - Built-in user guide covering capture tips and every feature.
@@ -50,11 +49,10 @@ The full guide is in the app under the "Guide" button.
 
 ## Outputs
 
-Each run is logged to three CSVs that join on a shared run id:
+Each run is logged to two CSVs that join on a shared run id:
 
 - `runs.csv` one row per run with settings and whole-frame stats.
 - `roi_regions.csv` per-region stats and SNR.
-- `line_profiles.csv` line peak, mean, and width.
 
 The ZIP download bundles the diff images and a self-contained copy of these rows,
 with millimetre columns filled in when a scale is set.

@@ -74,7 +74,7 @@ function makeDom() {
   // ----- initial state -----
   ck('analyze disabled initially', $('analyzeBtn').disabled === true);
   ck('testOnZone hidden in single mode', $('testOnZone').style.display === 'none');
-  ck('threshold default is 12', $('threshSlider').value === '12');
+  ck('threshold default is 1', $('threshSlider').value === '1');
 
   // ----- mode toggle -----
   click(doc.querySelector('.mode-btn[data-mode="compare"]'));
@@ -111,8 +111,8 @@ function makeDom() {
   catch (e) { ck('ctrl+enter safe when disabled', false); }
 
   // ----- inline-onclick globals exist -----
-  ['openFullscreen', 'closeFullscreen', 'downloadSingleImage', 'fmtRatio', 'drawLineChart',
-   'renderCompareResults', 'lineProfileSummary', 'fmtLen', 'pxToMm', 'esc',
+  ['openFullscreen', 'closeFullscreen', 'downloadSingleImage', 'fmtRatio',
+   'renderCompareResults', 'fmtLen', 'esc',
    'openCanvasZoom', 'closeCanvasZoom', 'bakeMeasureIntoDataURL', 'resetMeasureState',
    'renderMeasureLayer', 'measureLengthPx', 'boxMatchesBackgroundRegion', 'getSuggestScopeRoi',
    'reapplyRoiToNewCanvas', 'openMeasureZoom', 'refreshZoomedMeasureOverlay',
@@ -313,8 +313,7 @@ function makeDom() {
   ck('esc blocks tags', w.esc('<img src=x>') === '&lt;img src=x&gt;');
 
   // ----- render path: compare ROI table + XSS escaping -----
-  const line = { values: [0, 5, 20, 5, 0], smoothed: [1, 4, 18, 4, 1], peak: 18, mean: 5.6, length_px: 255, samples: 5, width_px: 30, peak_index: 2, baseline: 1, half_max: 9, width_lo: 1, width_hi: 3 };
-  const mkRun = (peak, rois) => ({ run_id: 'r' + peak, datetime: 'now', color: 'AA', grayscale: 'AA', raw: 'AA', thresholded: 'AA', image_width: 320, image_height: 240, stats: { peak, mean: peak / 2, coverage: 20 }, rois: rois ? { rois, background: { mean: 2, std: 1 }, threshold: 12 } : null, line });
+  const mkRun = (peak, rois) => ({ run_id: 'r' + peak, datetime: 'now', color: 'AA', grayscale: 'AA', raw: 'AA', thresholded: 'AA', image_width: 320, image_height: 240, stats: { peak, mean: peak / 2, coverage: 20 }, rois: rois ? { rois, background: { mean: 2, std: 1 }, threshold: 12 } : null });
   const evil = '<img src=x onerror=alert(1)>';
   const roisOff = [{ name: evil, role: 'signal', mean: 20, peak: 40, std: 5, coverage: 30, snr_mean: 8, snr_std: 4 }, { name: 'bg', role: 'background', mean: 2.5, peak: 6, std: 1, coverage: 1, snr_mean: 1, snr_std: 1 }];
   const roisOn = roisOff.map(r => ({ ...r, mean: r.mean * 1.3, peak: Math.round(r.peak * 1.3) }));
@@ -324,7 +323,6 @@ function makeDom() {
     ck('compare ROI table has 2 rows', $('compareRoiTableBody').querySelectorAll('tr').length === 2);
     ck('region name escaped (no injected img)', $('compareRoiTableBody').querySelector('img') === null);
     ck('region name kept as literal text', $('compareRoiTableBody').querySelector('.roi-name-cell').textContent === evil);
-    ck('compare line panel shown', $('compareLinePanel').style.display === 'flex');
   } catch (e) { fail++; console.log('FAIL renderCompareResults threw: ' + e.message); }
 
   ck('no errors after interactions', errors.length === 0);

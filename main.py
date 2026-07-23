@@ -18,8 +18,8 @@ COLORMAPS = {
     "VIRIDIS": cv2.COLORMAP_VIRIDIS,
 }
 
-DEFAULT_COVERAGE_THRESHOLD = 12
-# Median kernel for /line_profile's denoise and /diff_preview's smoothing (removes speckle without smearing the jet).
+DEFAULT_COVERAGE_THRESHOLD = 1
+# Median kernel for /diff_preview's smoothing (removes speckle without smearing the jet).
 MEDIAN_KSIZE = 5
 
 # Fixed (not per-image min/max) diff->white scale, so brightness stays comparable across experiments.
@@ -41,10 +41,6 @@ RUNS_HEADER = [
 ROI_REGIONS_FILE = "roi_regions.csv"
 ROI_REGIONS_HEADER = [
     "run_id", "roi_name", "role", "mean", "peak", "std", "coverage", "snr_mean", "snr_std",
-]
-LINE_PROFILES_FILE = "line_profiles.csv"
-LINE_PROFILES_HEADER = [
-    "run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise",
 ]
 
 
@@ -115,7 +111,7 @@ def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, al
                   denoise: bool = False):
     """Decode ref/test images and return (diff, shift_info) as their grayscale absolute difference.
 
-    Shared by run_bos, /suggest_params, /analyze_rois, /line_profile, /diff_preview. roi_norm,
+    Shared by run_bos, /suggest_params, /analyze_rois, /diff_preview. roi_norm,
     if given, is normalized (x, y, w, h) 0-1; both images are cropped to it first. If align is
     True, a whole-frame translation (measured from the four corners only, see _estimate_shift)
     is applied to test before diffing, and shift_info is the returned dict; otherwise shift_info
@@ -124,8 +120,7 @@ def compute_diff(ref_bytes: bytes, test_bytes: bytes, roi_norm: tuple = None, al
     If denoise is True, a median blur (MEDIAN_KSIZE) is applied to the diff itself before it's
     returned -- like align, this is a real preprocessing step (it changes peak/mean/coverage,
     not just the rendered image), distinct from the display-only noise_floor slider. Skipped on
-    crops smaller than the kernel (e.g. a tiny ROI) rather than raising. This is separate from
-    /line_profile's own per-line denoise toggle, which blurs its own full-image diff independently.
+    crops smaller than the kernel (e.g. a tiny ROI) rather than raising.
     """
     ref = cv2.imdecode(np.frombuffer(ref_bytes, np.uint8), cv2.IMREAD_COLOR)
     test = cv2.imdecode(np.frombuffer(test_bytes, np.uint8), cv2.IMREAD_COLOR)
@@ -193,8 +188,8 @@ def run_bos(
     the image shows.
 
     diff_full (the full-frame diff array, after this call's align/denoise) is returned
-    alongside the dict so callers that also need to sample it (e.g. /analyze's ROI list /
-    line profile) can reuse it instead of paying for a second identical decode+align+diff.
+    alongside the dict so callers that also need to sample it (e.g. /analyze's ROI list)
+    can reuse it instead of paying for a second identical decode+align+diff.
     """
     diff_full, shift_info = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
     img_h, img_w = diff_full.shape  # pre-footer size, in pixels -- the served PNGs are taller than
@@ -381,7 +376,6 @@ async def analyze(
     roi_w: float = Form(0.0),
     roi_h: float = Form(0.0),
     rois: str = Form(""),
-    line: str = Form(""),
     gas_type: str = Form("None"),
     flow_rate: str = Form(""),
     plasma_status: str = Form("OFF"),
@@ -398,7 +392,7 @@ async def analyze(
     Light: str = Form(""),
     Notes: str = Form(""),
 ):
-    """Run the main BOS analysis and commit one run to runs.csv (plus roi_regions.csv / line_profiles.csv if `rois` / `line` are sent)."""
+    """Run the main BOS analysis and commit one run to runs.csv (plus roi_regions.csv if `rois` is sent)."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 
@@ -414,50 +408,28 @@ async def analyze(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # ROI list / line profile sample the full-image diff -- reuses the diff_full run_bos
+    # ROI list samples the full-image diff -- reuses the diff_full run_bos
     # already computed above (same ref/test/align/denoise) instead of recomputing it a
     # second time, which used to also mean re-running the 4-corner phase-correlation
     # alignment a second time whenever Align was on.
     roi_result = None
-    line_result = None
-    if rois or line:
-        if rois:
+    if rois:
+        try:
+            roi_list = json.loads(rois)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="rois must be a valid JSON list.")
+        if isinstance(roi_list, list) and roi_list:
             try:
-                roi_list = json.loads(rois)
-            except (ValueError, TypeError):
-                raise HTTPException(status_code=400, detail="rois must be a valid JSON list.")
-            if isinstance(roi_list, list) and roi_list:
-                try:
-                    roi_result = analyze_roi_list(diff_full, roi_list, threshold)
-                except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc))
-
-        if line:
-            try:
-                line_spec = json.loads(line)
-                lx0, ly0 = float(line_spec["x0"]), float(line_spec["y0"])
-                lx1, ly1 = float(line_spec["x1"]), float(line_spec["y1"])
-            except (ValueError, TypeError, KeyError):
-                raise HTTPException(status_code=400, detail="line must be JSON {x0,y0,x1,y1}.")
-            try:
-                line_result = sample_line_profile(diff_full, lx0, ly0, lx1, ly1)
+                roi_result = analyze_roi_list(diff_full, roi_list, threshold)
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
-            # Echo inputs, plus the run's denoise setting (line sampling no longer has
-            # its own separate toggle -- it just samples diff_full, which already went
-            # through compute_diff with this run's denoise setting above).
-            line_result.update({
-                "x0": round(lx0, 6), "y0": round(ly0, 6),
-                "x1": round(lx1, 6), "y1": round(ly1, 6),
-                "denoise": denoise,
-            })
 
     # --- Commit this run to the three linked CSVs (one shared run_id) ---
     now = datetime.now()
     # Microsecond resolution, not just seconds: two /analyze calls landing in the same
     # second (e.g. Compare mode's OFF/ON pair, or the optional Noise Baseline run) used to
-    # be able to mint the identical run_id, silently scrambling which roi_regions.csv/
-    # line_profiles.csv rows belonged to which run once joined back by run_id. The frontend
+    # be able to mint the identical run_id, silently scrambling which roi_regions.csv
+    # rows belonged to which run once joined back by run_id. The frontend
     # previously worked around this by force-sleeping >=1.1s between requests; this makes
     # that workaround unnecessary since collisions are no longer possible in practice.
     run_id = now.strftime("%Y%m%d_%H%M%S_%f")
@@ -480,17 +452,9 @@ async def analyze(
             for r in roi_result["rois"]
         ])
 
-    if line_result:
-        _append_csv(LINE_PROFILES_FILE, LINE_PROFILES_HEADER, [[
-            run_id, line_result["x0"], line_result["y0"], line_result["x1"], line_result["y1"],
-            line_result["length_px"], line_result["peak"], line_result["mean"],
-            line_result["width_px"], "ON" if line_result["denoise"] else "OFF",
-        ]])
-
     result["run_id"] = run_id
     result["datetime"] = timestamp
     result["rois"] = roi_result
-    result["line"] = line_result
     return result
 
 
@@ -611,117 +575,13 @@ async def analyze_rois(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-def sample_line_profile(diff, x0: float, y0: float, x1: float, y1: float,
-                        samples: int = 200) -> dict:
-    """Sample a diff along a straight line; shared by /line_profile and /analyze.
-
-    Takes whatever diff it's given as-is (denoise, if wanted, should already be baked
-    in via compute_diff -- this used to also take its own separate denoise flag and
-    median-blur again here, which double-blurred when the run's main denoise was also
-    on; removed in favor of one denoise setting per run). The 15-sample moving average
-    below is a separate, always-on smoothing of the *sampled curve* for a readable
-    peak/width, not of the 2D image.
-
-    Returns everything the chart needs so the drawing and the reported numbers can't
-    drift apart: the peak value AND its sample index, the half-max level, and the
-    width band's low/high sample indices. peak is the height of the smoothed curve at
-    the detected peak (this is where the marker sits), not a separate percentile, so
-    the "peak N" label always matches the dot. width_px is FWHM-style: the span around
-    the peak where the smoothed value stays above baseline + (peak - baseline)/2
-    (baseline = 10th percentile). Raises ValueError on a zero-length line.
-    """
-    cx0, cy0, cx1, cy1 = (max(0.0, min(1.0, v)) for v in (x0, y0, x1, y1))
-    if cx0 == cx1 and cy0 == cy1:
-        raise ValueError("Line has zero length; drag to draw a line.")
-    samples = max(2, samples)
-
-    H, W = diff.shape
-    px0, px1 = cx0 * (W - 1), cx1 * (W - 1)
-    py0, py1 = cy0 * (H - 1), cy1 * (H - 1)
-    xs = np.linspace(px0, px1, samples).astype(np.float32).reshape(1, -1)
-    ys = np.linspace(py0, py1, samples).astype(np.float32).reshape(1, -1)
-
-    # remap wants 2D maps, so use a single row for this 1D line sample.
-    sampled = cv2.remap(
-        diff.astype(np.float32), xs, ys,
-        interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE,
-    )[0]
-
-    # Wide window (15) to suppress noise on faint signals.
-    window_size = 15
-    kernel = np.ones(window_size, dtype=np.float32) / float(window_size)
-    smoothed = np.convolve(sampled, kernel, mode="same")
-
-    length_px = int(round(float(np.hypot(px1 - px0, py1 - py0))))
-
-    # Ignore the outer 5% so an endpoint edge/noise spike can't steal the peak.
-    n = samples
-    margin = max(1, int(n * 0.05))
-    inner = smoothed[margin:n - margin]
-    p_idx = margin + int(np.argmax(inner)) if inner.size else min(margin, n - 1)
-
-    peak_val = float(smoothed[p_idx])
-    baseline = float(np.sort(smoothed)[int(0.1 * (n - 1))])
-    half_max = baseline + (peak_val - baseline) / 2.0
-    w_lo = w_hi = p_idx
-    while w_lo > 0 and smoothed[w_lo - 1] >= half_max:
-        w_lo -= 1
-    while w_hi < n - 1 and smoothed[w_hi + 1] >= half_max:
-        w_hi += 1
-    width_px = int(round((w_hi - w_lo) / (n - 1) * length_px))
-
-    return {
-        "values": [round(float(v), 1) for v in sampled],
-        "smoothed": [round(float(v), 1) for v in smoothed],
-        "peak": int(round(peak_val)),
-        "mean": round(float(sampled.mean()), 2),
-        "length_px": length_px,
-        "samples": samples,
-        "width_px": width_px,
-        # Chart-drawing anchors so the frontend renders exactly what was measured.
-        "peak_index": p_idx,
-        "baseline": round(baseline, 1),
-        "half_max": round(half_max, 1),
-        "width_lo": w_lo,
-        "width_hi": w_hi,
-    }
-
-
-@app.post("/line_profile")
-async def line_profile(
-    reference: UploadFile = File(...),
-    test: UploadFile = File(...),
-    x0: float = Form(...),
-    y0: float = Form(...),
-    x1: float = Form(...),
-    y1: float = Form(...),
-    samples: int = Form(200),
-    denoise: bool = Form(False),
-    align: bool = Form(False),
-):
-    """Sample the BOS diff along a straight line (full image, no ROI). Display-only, no logging.
-
-    `denoise` here is the same run-wide setting as everywhere else (see compute_diff) -- this
-    endpoint used to take a separate line-only denoise flag applied inside sample_line_profile;
-    that's gone, so the live preview now matches whatever Analyze will actually compute.
-    """
-    ref_bytes = await reference.read()
-    test_bytes = await test.read()
-
-    try:
-        diff, _ = compute_diff(ref_bytes, test_bytes, None, align=align, denoise=denoise)
-        return sample_line_profile(diff, x0, y0, x1, y1, samples=samples)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-
 @app.post("/diff_preview")
 async def diff_preview(
     reference: UploadFile = File(...),
     test: UploadFile = File(...),
     align: bool = Form(False),
 ):
-    """Return a contrast-stretched diff for placing a line profile (the reference alone shows no jet). Display-only, never used for measurement."""
+    """Return a contrast-stretched diff for placing an ROI (the reference alone shows no jet). Display-only, never used for measurement."""
     ref_bytes = await reference.read()
     test_bytes = await test.read()
 

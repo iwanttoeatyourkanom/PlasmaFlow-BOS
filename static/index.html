@@ -197,8 +197,8 @@
 
     /* ===== ROI ===== */
     .roi-placeholder { background: var(--inset); border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 2.2rem; text-align: center; color: var(--faint); font-size: 0.82rem; font-family: var(--mono); }
-    #roiCanvas, #lineCanvas, #calibCanvas { display: none; max-width: 420px; max-height: 360px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 1px solid var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
-    #roiCanvas.has-image, #lineCanvas.has-image, #calibCanvas.has-image { display: block; }
+    #roiCanvas, #calibCanvas { display: none; max-width: 420px; max-height: 360px; width: auto; height: auto; margin: 0 auto; border-radius: var(--radius-md); border: 1px solid var(--border); cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
+    #roiCanvas.has-image, #calibCanvas.has-image { display: block; }
     #roiCanvas.has-roi { border-color: var(--text); }
 
     /* ===== Canvas zoom-to-draw ===== */
@@ -212,7 +212,6 @@
     .canvas-zoom-btn svg { width: 16px; height: 16px; }
     .canvas-zoom-btn:hover { border-color: var(--border-hover); color: var(--text); background: var(--inset); }
     #roiCanvas.has-image ~ .canvas-zoom-btn,
-    #lineCanvas.has-image ~ .canvas-zoom-btn,
     #calibCanvas.has-image ~ .canvas-zoom-btn { display: flex; }
     .canvas-zoom-modal {
       display: none; position: fixed; z-index: 9999; inset: 0; padding: 1.5rem;
@@ -234,7 +233,7 @@
     /* Actual display size is computed and set inline (canvas.style.width/height) by
        fitZoomedCanvas() in JS, since max-width/max-height alone can only shrink a
        canvas, never grow one that's already smaller than the available space. The
-       base #roiCanvas/#lineCanvas/#calibCanvas rule caps max-width at 420px via an
+       base #roiCanvas/#calibCanvas rule caps max-width at 420px via an
        ID selector, which would otherwise still clip the upscaled size -- lift that
        cap here (important needed since ID specificity would otherwise win). */
     .canvas-zoom-body canvas { margin: 0; max-width: none !important; max-height: none !important; }
@@ -289,15 +288,7 @@
     .roi-note { font-size: 0.74rem; color: var(--muted); font-family: var(--mono); line-height: 1.5; margin-top: 0.95rem; }
     .roi-overlay-img { display: block; max-width: 480px; max-height: 400px; width: auto; height: auto; object-fit: contain; margin: 0 auto 1.1rem; border-radius: var(--radius-md); border: 1px solid var(--border); }
 
-    /* ===== Line Profile controls (its own card, separate from ROI) ===== */
-    #lineChartWrap, #lineChartResultWrap, #compareLineChartOffWrap, #compareLineChartOnWrap { width: 100%; overflow-x: auto; }
-    #lineChart, #lineChartResult, #compareLineChartOff, #compareLineChartOn { width: 100%; max-width: 100%; height: auto; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-md); display: block; }
     .line-hint { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); margin-top: 0.9rem; line-height: 1.5; }
-    /* Inline line-profile chart shown under the controls (not a full-screen view). */
-    #lineChartInline { margin-top: 1.3rem; padding-top: 1.3rem; border-top: 1px solid var(--border); }
-    .line-inline-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
-    .line-inline-title { font-size: 0.95rem; font-weight: 600; color: var(--text); }
-    .line-inline-head .hint { color: var(--faint); font-size: 0.74rem; font-family: var(--mono); }
 
     /* ===== Scale calibration ===== */
     .calib-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.1rem; justify-content: center; }
@@ -653,8 +644,8 @@
           <div class="settings-subhead">Measurement <span class="tag">(changes the saved numbers)</span></div>
           <div class="grid-2">
             <div class="form-group">
-              <div class="slider-header"><label>Coverage Threshold</label><input type="number" id="threshVal" class="slider-val slider-val-input" min="1" max="80" step="1" value="12" /></div>
-              <input type="range" id="threshSlider" min="1" max="80" step="1" value="12" />
+              <div class="slider-header"><label>Coverage Threshold</label><input type="number" id="threshVal" class="slider-val slider-val-input" min="1" max="80" step="1" value="1" /></div>
+              <input type="range" id="threshSlider" min="1" max="80" step="1" value="1" />
               <button id="autoThreshBtn" class="btn-secondary btn-auto">Auto</button>
               <div class="input-desc">Counts as "flow" if diff &gt; threshold (strict). Higher = stricter. Affects Coverage % and the region table. Auto suggests a value scoped to a Background-tagged Compare Region if you've added one (otherwise the whole image) -- never the signal box, since that would compute "noise" from the jet itself.</div>
             </div>
@@ -754,43 +745,10 @@
         </div>
       </div>
 
-      <!-- Card 5: Line Profile (independent from ROI - its own canvas + diff preview) -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-num">5</div>
-          <div class="card-head-text">
-            <h2 class="card-title">Line Profile <span class="opt">Optional</span></h2>
-            <div class="card-desc">Drag a line across the jet on the preview below (the difference image, brightened so the jet is visible). The chart appears automatically when you let go and shows how strong the change is along that line.</div>
-          </div>
-          <button id="clearLineBtn" class="btn-secondary" style="display:none;">✕ Clear Line</button>
-        </div>
-
-        <div id="linePlaceholder" class="roi-placeholder">Upload both photos first, the difference preview shows up here.</div>
-        <div class="canvas-frame">
-          <canvas id="lineCanvas"></canvas>
-          <button type="button" class="canvas-zoom-btn" data-target="lineCanvas" data-title="Line Profile" aria-label="Expand to draw">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-          </button>
-        </div>
-        <div id="lineBgStatus" class="line-hint"></div>
-        <div id="lineInfo" class="roi-info">No line drawn. Drag across the jet at any angle.</div>
-
-        <!-- Chart shown inline right under the controls (no full-screen takeover)
-             so the line and its profile stay visible together while re-plotting. -->
-        <div id="lineChartInline" style="display:none;">
-          <div class="line-inline-head">
-            <span class="line-inline-title">Line Profile</span>
-            <span class="hint" id="lineProfileHint">difference along the drawn line</span>
-          </div>
-          <div id="lineChartWrap"><canvas id="lineChart" width="1000" height="360"></canvas></div>
-          <div class="line-hint">Peak marks the strongest point along the line, check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout). Two bumps with a dip between them = the jet's two edges.</div>
-        </div>
-      </div>
-
-      <!-- Card 6: Experimental Parameters -->
+      <!-- Card 5: Experimental Parameters -->
       <div class="card collapsible collapsed">
         <div class="card-header">
-          <div class="card-num">6</div>
+          <div class="card-num">5</div>
           <div class="card-head-text">
             <h2 class="card-title">Experimental Parameters <span class="opt">Optional</span></h2>
             <div class="card-desc">Saved into the CSV log with each run.</div>
@@ -807,10 +765,10 @@
         </div>
       </div>
 
-      <!-- Card 7: Camera & Layout Settings -->
+      <!-- Card 6: Camera & Layout Settings -->
       <div class="card collapsible collapsed">
         <div class="card-header">
-          <div class="card-num">7</div>
+          <div class="card-num">6</div>
           <div class="card-head-text">
             <h2 class="card-title">Camera &amp; Layout Settings <span class="opt">Optional</span></h2>
             <div class="card-desc">Camera settings and distances, saved with the run.</div>
@@ -990,14 +948,6 @@
       <div id="roiTableNote" class="roi-note"></div>
     </div>
 
-    <div class="rv-panel" id="lineResultPanel" style="display:none;">
-      <div class="rv-panel-head">
-        <h3>Line Profile <span class="hint" id="lineResultHint"></span></h3>
-      </div>
-      <div id="lineChartResultWrap"><canvas id="lineChartResult" width="1000" height="360"></canvas></div>
-      <div class="line-hint">Peak marks the strongest point along the line, check it sits on the jet, not a noise spike. The shaded band is where the signal stays above half the peak (that's the width readout).</div>
-    </div>
-
     <div class="rv-panel">
       <div class="rv-panel-head">
         <h3>Trial Summary <span class="hint">all logged values for this run</span></h3>
@@ -1175,22 +1125,6 @@
       </table>
     </div>
 
-    <div class="rv-panel" id="compareLinePanel" style="display:none;">
-      <div class="rv-panel-head">
-        <h3>Line Profile <span class="hint">same line, both runs</span></h3>
-      </div>
-      <div class="compare-frame">
-        <div class="compare-col">
-          <div class="compare-col-label off">Plasma OFF <span class="hint" id="compareLineOffHint"></span></div>
-          <div id="compareLineChartOffWrap"><canvas id="compareLineChartOff" width="1000" height="360"></canvas></div>
-        </div>
-        <div class="compare-col">
-          <div class="compare-col-label on">Plasma ON <span class="hint" id="compareLineOnHint"></span></div>
-          <div id="compareLineChartOnWrap"><canvas id="compareLineChartOn" width="1000" height="360"></canvas></div>
-        </div>
-      </div>
-      <div class="line-hint">Peak marks the strongest point along the line for that run; the shaded band is where the signal stays above half the peak (width readout). Compare peak height and band width between OFF and ON to see whether plasma changed the jet's structure.</div>
-    </div>
   </div>
 
   <div id="imgModal" class="modal" onclick="closeFullscreen()">
@@ -1198,7 +1132,7 @@
     <img id="modalImg" />
   </div>
 
-  <!-- Zoom-to-draw modal: reused by ROI / Line Profile / Scale. The target canvas is
+  <!-- Zoom-to-draw modal: reused by ROI / Scale. The target canvas is
        moved into #canvasZoomBody while open (its existing drag listeners keep working
        since it's the same DOM node), then moved back on close. -->
   <div id="canvasZoomModal" class="canvas-zoom-modal">
@@ -1271,7 +1205,7 @@
             <ol>
               <li>Upload a <strong>Reference</strong> (flow off) and a <strong>Test</strong> (flow on).</li>
               <li>Optional: drag a box on the preview to set an <strong>ROI</strong> so numbers come from the jet, not the whole frame.</li>
-              <li>Optional: set a <strong>Scale</strong> so sizes read in mm, and draw a <strong>Line</strong> across the jet for a width and profile.</li>
+              <li>Optional: set a <strong>Scale</strong> so sizes read in mm before measuring.</li>
               <li>Press <strong>Analyze</strong>.</li>
               <li>Read the images and numbers, then <strong>Download ZIP</strong> to keep the results and CSV log.</li>
             </ol>
@@ -1352,13 +1286,6 @@
             </ul>
           </div>
           <div class="cg-group">
-            <h3>Line Profile</h3>
-            <ul>
-              <li>Drag a line across the jet. The chart shows how strong the shift is along that line.</li>
-              <li>The dot marks the peak. The shaded band is the width at half the peak height. Two bumps with a dip mean you crossed both jet edges.</li>
-            </ul>
-          </div>
-          <div class="cg-group">
             <h3>Noise Baseline</h3>
             <ul>
               <li>Add a second flow-off photo (Reference 2). The tool diffs Reference against it, both off, to show pure noise.</li>
@@ -1418,7 +1345,7 @@
           <div class="cg-group">
             <h3>Export</h3>
             <ul>
-              <li><strong>Download ZIP</strong> saves the images plus three CSVs: the run log, the region table, and the line profile.</li>
+              <li><strong>Download ZIP</strong> saves the images plus two CSVs: the run log and the region table.</li>
               <li>The CSVs share one run ID so they join back together. mm columns are filled when a scale is set.</li>
             </ul>
           </div>
@@ -1593,7 +1520,7 @@
       document.getElementById('imgModal').style.display = 'none';
     }
 
-    // ===== Zoom-to-draw modal (shared by ROI / Line Profile / Scale canvases) =====
+    // ===== Zoom-to-draw modal (shared by ROI / Scale canvases) =====
     // Moves the real canvas element into a big centered modal so dragging a box/line
     // is easier on a small screen, then puts it back exactly where it was on close.
     // The canvas's own mousedown/mousemove/mouseup listeners stay attached across the
@@ -1726,17 +1653,16 @@
         openCanvasZoom(btn.dataset.target, btn.dataset.title);
       });
     });
-    // Wrapped in arrow functions (rather than referencing clearROI/clearLine/
-    // clearCalibScale directly) so this object can sit here regardless of where
-    // those functions are defined later in the file -- they only need to exist by
-    // the time Clear is actually clicked, not at this line.
+    // Wrapped in arrow functions (rather than referencing clearROI/clearCalibScale
+    // directly) so this object can sit here regardless of where those functions
+    // are defined later in the file -- they only need to exist by the time Clear
+    // is actually clicked, not at this line.
     const CANVAS_CLEAR_FNS = {
       // Every completed drag on roiCanvas also gets added to multiRois (the Compare
       // Regions list, drawn under the quick-ROI box in drawROICanvas) -- clearROI()
       // alone only drops the quick box, so the last-drawn box would keep rendering.
       // Clear here means "wipe this card", so both go.
       roiCanvas: () => { clearROI(); clearAllMultiRois(); },
-      lineCanvas: () => clearLine(),
       calibCanvas: () => clearCalibScale(),
     };
     document.getElementById('canvasZoomUndo').addEventListener('click', e => {
@@ -1803,7 +1729,7 @@
     // ===== ROI Selection =====
     const roiCanvas = document.getElementById('roiCanvas');
     const roiCtx = roiCanvas.getContext('2d');
-    let roiImageEl = new Image();      // the contrast-stretched diff preview (same as Line Profile's)
+    let roiImageEl = new Image();      // the contrast-stretched diff preview from /diff_preview
     const setRoiBgStatus = msg => { document.getElementById('roiBgStatus').textContent = msg || ''; };
     let roiDragging = false;
     let roiStart = { x: 0, y: 0 };
@@ -2028,167 +1954,24 @@
       if (roiDragging) finalizeROI();
     });
 
-    // ===== Line Profile (Card 3) - fully independent from ROI =====
-    // Own canvas, own state, own diff-preview background. Nothing here reads or
-    // writes the ROI canvas/state, so drawing in one card never disturbs the other.
-    const lineCanvas = document.getElementById('lineCanvas');
-    const lineCtx = lineCanvas.getContext('2d');
-    const LINE_COLOR = '#ffd166';
-    let lineImageEl = new Image();      // the contrast-stretched diff preview
-    let lineDiffPreviewSrc = null;      // cached data URL; invalidated when ref/test changes
-    let lineDiffFetching = false;
-    let lineDiffPending = false;        // ref/test changed again while a fetch was already in flight
-    let lineNorm = null;                // {x0, y0, x1, y1} normalized 0-1
-    let lineDragging = false;
-    let lineStart = { x: 0, y: 0 };
-    let lineEnd = { x: 0, y: 0 };
-
-    const setLineBgStatus = msg => { document.getElementById('lineBgStatus').textContent = msg || ''; };
-
-    function getLineCanvasPos(e) {
-      const rect = lineCanvas.getBoundingClientRect();
-      return {
-        x: (e.clientX - rect.left) / rect.width * lineCanvas.width,
-        y: (e.clientY - rect.top) / rect.height * lineCanvas.height
-      };
-    }
-
-    function drawLineCanvas() {
-      lineCtx.clearRect(0, 0, lineCanvas.width, lineCanvas.height);
-      if (lineImageEl.complete && lineImageEl.naturalWidth) {
-        lineCtx.drawImage(lineImageEl, 0, 0, lineCanvas.width, lineCanvas.height);
-      }
-      // Live line during a drag, otherwise the committed line.
-      let ln = null;
-      if (lineDragging) {
-        ln = { x0: lineStart.x, y0: lineStart.y, x1: lineEnd.x, y1: lineEnd.y };
-      } else if (lineNorm) {
-        ln = {
-          x0: lineNorm.x0 * lineCanvas.width, y0: lineNorm.y0 * lineCanvas.height,
-          x1: lineNorm.x1 * lineCanvas.width, y1: lineNorm.y1 * lineCanvas.height,
-        };
-      }
-      if (ln) {
-        lineCtx.setLineDash([]);
-        lineCtx.strokeStyle = LINE_COLOR;
-        lineCtx.lineWidth = 2.5;
-        lineCtx.beginPath();
-        lineCtx.moveTo(ln.x0, ln.y0);
-        lineCtx.lineTo(ln.x1, ln.y1);
-        lineCtx.stroke();
-        [[ln.x0, ln.y0], [ln.x1, ln.y1]].forEach(([hx, hy]) => {
-          lineCtx.fillStyle = LINE_COLOR;
-          lineCtx.beginPath(); lineCtx.arc(hx, hy, 4.5, 0, Math.PI * 2); lineCtx.fill();
-          lineCtx.fillStyle = '#0b0c0d';
-          lineCtx.beginPath(); lineCtx.arc(hx, hy, 2, 0, Math.PI * 2); lineCtx.fill();
-        });
-      }
-    }
-
-    // Free drag only: click-drag draws one straight line at any angle.
-    let lineDownClient = { x: 0, y: 0 };
-    lineCanvas.addEventListener('mousedown', e => {
-      e.preventDefault();
-      if (!(lineImageEl.complete && lineImageEl.naturalWidth)) return; // no preview yet
-      lineDownClient = { x: e.clientX, y: e.clientY };
-      lineDragging = true;
-      lineStart = getLineCanvasPos(e);
-      lineEnd = lineStart;
-      lineNorm = null;
-      drawLineCanvas();
-    });
-
-    lineCanvas.addEventListener('mousemove', e => {
-      if (!lineDragging) return;
-      lineEnd = getLineCanvasPos(e);
-      drawLineCanvas();
-    });
-
-    // A plain click (barely any movement) means the user tapped the small preview
-    // rather than trying to drag a line on it -- open the big zoom view instead.
-    lineCanvas.addEventListener('mouseup', e => {
-      if (!lineDragging) return;
-      lineEnd = getLineCanvasPos(e);
-      const wasClick = Math.hypot(e.clientX - lineDownClient.x, e.clientY - lineDownClient.y) < 6;
-      finalizeLine();
-      if (wasClick) openCanvasZoom('lineCanvas', 'Line Profile');
-    });
-
-    lineCanvas.addEventListener('mouseleave', () => {
-      if (lineDragging) finalizeLine();
-    });
-
-    // Commit the current drag as the active line (endpoints normalized 0-1). A
-    // near-zero drag clears it. The user may still drag again to adjust.
-    function finalizeLine() {
-      lineDragging = false;
-      const dx = lineEnd.x - lineStart.x, dy = lineEnd.y - lineStart.y;
-      if (Math.hypot(dx, dy) < 5) {
-        lineNorm = null;
-      } else {
-        lineNorm = {
-          x0: clamp01(lineStart.x / lineCanvas.width), y0: clamp01(lineStart.y / lineCanvas.height),
-          x1: clamp01(lineEnd.x / lineCanvas.width), y1: clamp01(lineEnd.y / lineCanvas.height),
-        };
-      }
-      updateLineInfo();
-      drawLineCanvas();
-      // Live: re-plot the profile as soon as the drag ends (or hide it if the
-      // drag was too small and the line got cleared).
-      scheduleLineProfile();
-    }
-
-    function updateLineInfo() {
-      const el = document.getElementById('lineInfo');
-      const clearBtn = document.getElementById('clearLineBtn');
-      if (lineNorm) {
-        const f = v => (v * 100).toFixed(0);
-        el.textContent = `Line: (${f(lineNorm.x0)}%, ${f(lineNorm.y0)}%) -> (${f(lineNorm.x1)}%, ${f(lineNorm.y1)}%)`;
-        el.style.color = 'var(--text)';
-        clearBtn.style.display = '';
-      } else {
-        el.textContent = 'No line drawn. Drag across the jet at any angle.';
-        el.style.color = 'var(--muted)';
-        clearBtn.style.display = 'none';
-      }
-    }
-
-    function clearLine() {
-      lineNorm = null;
-      lineDragging = false;
-      lineFetchSeq++;   // drop any in-flight profile response
-      document.getElementById('lineChartInline').style.display = 'none';
-      updateLineInfo();
-      drawLineCanvas();
-    }
-    document.getElementById('clearLineBtn').onclick = e => { e.stopPropagation(); clearLine(); };
-
-
-    // Fetch the contrast-stretched diff once, cache it, and draw it as the
-    // drag background for both Line Profile and ROI Selection. Display-only:
-    // /line_profile and /analyze still sample the raw diff, so measurements
-    // are unaffected by this preview.
+    let roiDiffFetching = false;
+    let roiDiffPending = false;  // ref/test changed again while a fetch was already in flight
     async function fetchDiffPreview() {
       // If a preview fetch is already in flight and the ref/test files changed
       // again in the meantime (e.g. swapping images without waiting), don't drop
-      // this request silently -- that left the ROI/Line canvases showing the
-      // diff for a stale, no-longer-selected pair of images. Instead flag it and
-      // re-run once the in-flight fetch settles, so the canvas always ends up
-      // matching whatever files are selected last.
-      if (lineDiffFetching) { lineDiffPending = true; return; }
+      // this request silently -- that left the ROI canvas showing the diff for a
+      // stale, no-longer-selected pair of images. Instead flag it and re-run once
+      // the in-flight fetch settles, so the canvas always ends up matching
+      // whatever files are selected last.
+      if (roiDiffFetching) { roiDiffPending = true; return; }
       if (!(refInput.files.length && testInput.files.length)) {
-        setLineBgStatus('Upload both Reference and Test first.');
         setRoiBgStatus('Upload both Reference and Test first.');
         return;
       }
-      lineDiffFetching = true;
-      lineDiffPending = false;
-      const linePh = document.getElementById('linePlaceholder');
+      roiDiffFetching = true;
+      roiDiffPending = false;
       const roiPh = document.getElementById('roiPlaceholder');
-      const loadingMsg = '<span class="spinner"></span>&nbsp; Building difference preview… large photos (e.g. DSLR, 6000px+) can take several seconds.';
-      linePh.innerHTML = loadingMsg;
-      roiPh.innerHTML = loadingMsg;
-      setLineBgStatus('Building difference preview…');
+      roiPh.innerHTML = '<span class="spinner"></span>&nbsp; Building difference preview… large photos (e.g. DSLR, 6000px+) can take several seconds.';
       setRoiBgStatus('Building difference preview…');
       const fd = new FormData();
       fd.append('reference', refInput.files[0]);
@@ -2200,158 +1983,19 @@
           throw new Error(err.detail || `Server error (${res.status})`);
         }
         const data = await res.json();
-        lineDiffPreviewSrc = 'data:image/png;base64,' + data.preview;
-        await new Promise(resolve => {
-          const img = new Image();
-          img.onload = () => { lineImageEl = img; resolve(); };
-          img.onerror = resolve;
-          img.src = lineDiffPreviewSrc;
-        });
-        // Size the canvas to the preview (same dims as reference -> coords map 1:1).
-        const MAX_W = 1200;
-        const scale = Math.min(1, MAX_W / lineImageEl.naturalWidth);
-        lineCanvas.width = Math.round(lineImageEl.naturalWidth * scale);
-        lineCanvas.height = Math.round(lineImageEl.naturalHeight * scale);
-        linePh.style.display = 'none';
-        lineCanvas.classList.add('has-image');
-        setLineBgStatus('');
-        drawLineCanvas();
-
-        await loadDiffPreviewToROICanvas(lineDiffPreviewSrc);
+        await loadDiffPreviewToROICanvas('data:image/png;base64,' + data.preview);
         setRoiBgStatus('');
       } catch (err) {
-        linePh.textContent = 'Diff preview failed: ' + err.message;
-        linePh.style.display = '';
         roiPh.textContent = 'Diff preview failed: ' + err.message;
         roiPh.style.display = '';
-        setLineBgStatus('Diff preview failed: ' + err.message);
         setRoiBgStatus('Diff preview failed: ' + err.message);
       } finally {
-        lineDiffFetching = false;
-        if (lineDiffPending) {
-          lineDiffPending = false;
+        roiDiffFetching = false;
+        if (roiDiffPending) {
+          roiDiffPending = false;
           fetchDiffPreview();
         }
       }
-    }
-
-    // Reset the line canvas back to its placeholder when images are missing.
-    function resetLineCanvas() {
-      lineDiffPreviewSrc = null;
-      lineImageEl = new Image();
-      lineCanvas.classList.remove('has-image');
-      document.getElementById('linePlaceholder').style.display = '';
-      drawLineCanvas();
-    }
-
-    // Draw a line-profile response as a chart with the Canvas 2D API. Renders
-    // to the in-card canvas by default; the results view passes its own canvas.
-    // yMaxOverride lets two charts share one Y scale (Compare mode passes the max of
-    // both runs) so peak heights can be read against each other by eye.
-    function drawLineChart(data, canvasId = 'lineChart', yMaxOverride = null) {
-      const canvas = document.getElementById(canvasId);
-      const ctx = canvas.getContext('2d');
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-
-      const values = data.values || [];
-      const smoothed = data.smoothed || [];
-      const n = values.length;
-      if (!n) return;
-
-      const padL = 56, padR = 22, padT = 26, padB = 46;
-      const plotW = W - padL - padR, plotH = H - padT - padB;
-      const yMax = yMaxOverride || Math.max(10, ...values, ...smoothed); // avoid a flat 0-scale
-      const xAt = i => padL + (n === 1 ? 0 : (i / (n - 1)) * plotW);
-      const yAt = v => padT + plotH - (v / yMax) * plotH;
-      // Distance along the line at sample i, in mm when a scale is set, else px.
-      const distAt = i => {
-        const px = (n === 1 ? 0 : (i / (n - 1))) * (data.length_px || 0);
-        return calibPxPerMm ? (px / calibPxPerMm) : px;
-      };
-      const distUnit = calibPxPerMm ? 'mm' : 'px';
-
-      // Gridlines + Y labels (0, mid, max)
-      ctx.font = '11px "IBM Plex Mono", monospace';
-      ctx.textBaseline = 'middle';
-      [0, 0.5, 1].forEach(fr => {
-        const yv = yMax * fr, y = yAt(yv);
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
-        ctx.fillStyle = '#969a9f'; ctx.textAlign = 'right';
-        ctx.fillText(Math.round(yv), padL - 8, y);
-      });
-
-      // Axes
-      ctx.strokeStyle = '#3b3e43'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
-
-      // Y caption
-      ctx.save();
-      ctx.translate(13, padT + plotH / 2); ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = '#61646a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('diff intensity', 0, 0);
-      ctx.restore();
-
-      // X labels: real distance at each end + a unit caption
-      ctx.fillStyle = '#969a9f'; ctx.textBaseline = 'top';
-      ctx.textAlign = 'left'; ctx.fillText('0', padL, padT + plotH + 10);
-      ctx.textAlign = 'right'; ctx.fillText(distAt(n - 1).toFixed(calibPxPerMm ? 1 : 0), padL + plotW, padT + plotH + 10);
-      ctx.textAlign = 'center'; ctx.fillStyle = '#61646a';
-      ctx.fillText(`distance along line (${distUnit})`, padL + plotW / 2, padT + plotH + 10);
-
-      // Peak index + width band come from the backend so the marker, band, and the
-      // reported numbers always agree. Fallback recompute only for older responses.
-      let pIdx = data.peak_index;
-      if (pIdx == null) {
-        const margin = Math.max(1, Math.floor(n * 0.05));
-        pIdx = margin;
-        for (let i = margin; i < n - margin; i++) if (smoothed[i] > smoothed[pIdx]) pIdx = i;
-      }
-      let wL = data.width_lo, wR = data.width_hi, halfMax = data.half_max;
-      if (wL == null || wR == null || halfMax == null) {
-        const sorted = [...smoothed].sort((a, b) => a - b);
-        const baseline = sorted[Math.floor(0.1 * (sorted.length - 1))];
-        halfMax = baseline + (smoothed[pIdx] - baseline) / 2;
-        wL = pIdx; wR = pIdx;
-        while (wL > 0 && smoothed[wL - 1] >= halfMax) wL--;
-        while (wR < n - 1 && smoothed[wR + 1] >= halfMax) wR++;
-      }
-
-      // Shade the above-half-max band behind the series, with a dashed
-      // half-max level line so the cutoff is readable.
-      ctx.fillStyle = 'rgba(255, 209, 102, 0.09)';
-      ctx.fillRect(xAt(wL), padT, xAt(wR) - xAt(wL), plotH);
-      ctx.strokeStyle = 'rgba(255, 209, 102, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.moveTo(xAt(wL), yAt(halfMax)); ctx.lineTo(xAt(wR), yAt(halfMax)); ctx.stroke();
-      ctx.setLineDash([]);
-
-      const plot = (series, color, width) => {
-        ctx.strokeStyle = color; ctx.lineWidth = width;
-        ctx.beginPath();
-        series.forEach((v, i) => { const x = xAt(i), y = yAt(v); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-        ctx.stroke();
-      };
-      plot(values, 'rgba(124,196,255,0.35)', 1.5);   // raw, faint
-      plot(smoothed, LINE_COLOR, 2.5);                // smoothed, bold
-
-      // Peak marker (sits on the smoothed curve at the backend's peak index, so the
-      // dot height and the "peak N" label are the same number)
-      const pX = xAt(pIdx), pY = yAt(smoothed[pIdx]);
-      ctx.fillStyle = LINE_COLOR;
-      ctx.beginPath(); ctx.arc(pX, pY, 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#e6e7e9'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText('peak ' + data.peak, pX, pY - 7);
-    }
-
-    // "peak / mean / width / length" summary next to a chart. Width and length show
-    // in mm when a scale is set (see calibration), else px.
-    function lineProfileSummary(data) {
-      const widthTxt = data.width_px ? ` · width ${fmtLen(data.width_px)}` : '';
-      return `peak ${data.peak} · mean ${data.mean}${widthTxt} · length ${fmtLen(data.length_px)} · ${data.samples} samples`;
     }
 
     // Format a pixel length as mm when a scale is set, else px. One place so every
@@ -2362,61 +2006,11 @@
       return `${px} px`;
     }
 
-    // Pixels to mm for CSV cells: a number when a scale is known, else blank.
-    // Defaults to the live scale but a run's snapshot scale can be passed so the
-    // CSV matches what was on screen at Analyze time.
-    function pxToMm(px, scale = calibPxPerMm) {
-      return (scale && px != null) ? +(px / scale).toFixed(3) : '';
-    }
-
     // Escape user text (region names, roles) before putting it in innerHTML.
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"]/g,
         ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     }
-
-    // Live line profile: fires automatically when a drag ends or the denoise
-    // toggle flips - no button. DISPLAY ONLY (never writes CSV). The sequence
-    // counter drops stale responses when the user redraws quickly.
-    let lineFetchSeq = 0;
-    async function fetchLineProfile() {
-      const inline = document.getElementById('lineChartInline');
-      if (!lineNorm) { inline.style.display = 'none'; return; }
-      if (!(refInput.files.length && testInput.files.length)) {
-        setLineBgStatus('Upload both Reference and Test first.');
-        return;
-      }
-      const seq = ++lineFetchSeq;
-      setLineBgStatus('Plotting line profile…');
-
-      const fd = new FormData();
-      fd.append('reference', refInput.files[0]);
-      fd.append('test', testInput.files[0]);
-      fd.append('x0', lineNorm.x0.toFixed(6));
-      fd.append('y0', lineNorm.y0.toFixed(6));
-      fd.append('x1', lineNorm.x1.toFixed(6));
-      fd.append('y1', lineNorm.y1.toFixed(6));
-      fd.append('samples', '200');
-      fd.append('denoise', document.getElementById('denoiseToggle').checked ? 'true' : 'false');
-      fd.append('align', document.getElementById('alignToggle').checked ? 'true' : 'false');
-
-      try {
-        const res = await fetch('/line_profile', { method: 'POST', body: fd });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || `Server error (${res.status})`);
-        }
-        const data = await res.json();
-        if (seq !== lineFetchSeq) return;   // a newer draw superseded this one
-        drawLineChart(data);
-        document.getElementById('lineProfileHint').textContent = lineProfileSummary(data);
-        inline.style.display = 'block';
-        setLineBgStatus('');
-      } catch (err) {
-        if (seq === lineFetchSeq) setLineBgStatus('Line profile failed: ' + err.message);
-      }
-    }
-    const scheduleLineProfile = debounce(fetchLineProfile, 300);
 
     document.getElementById('clearRoiBtn').onclick = e => {
       e.stopPropagation();
@@ -2437,8 +2031,8 @@
       drawROICanvas();
     }
 
-    // Load the same contrast-stretched diff preview used by Line Profile as the
-    // ROI drawing background, so both cards show the jet the same way.
+    // Load the contrast-stretched diff preview as the ROI drawing background,
+    // so the jet is visible while placing a box.
     function loadDiffPreviewToROICanvas(src) {
       return new Promise(resolve => {
         const img = new Image();
@@ -2474,9 +2068,9 @@
     // ===== Scale calibration (pixels -> millimetres) =====
     // Draw a line over a known length in the plain reference photo (a ruler, or any
     // mark whose real size you know), type that length in mm, and every length
-    // readout (line profile length + width) switches from px to mm. Purely client
-    // side: px/mm is measured in the reference image's own pixels, which is the same
-    // pixel space the backend reports line length/width in, so it maps 1:1.
+    // readout (Measure tool lengths) switches from px to mm. Purely client side:
+    // px/mm is measured in the reference image's own pixels, which is the same
+    // pixel space the Measure tool's lengths are computed in, so it maps 1:1.
     const calibCanvas = document.getElementById('calibCanvas');
     const calibCtx = calibCanvas.getContext('2d');
     let calibImg = new Image();
@@ -2600,9 +2194,6 @@
       calibPxPerMm = pxPerMm;
       if (persist) { try { localStorage.setItem(CALIB_KEY, String(pxPerMm)); } catch {} }
       renderCalibState();
-      // If a line is already drawn on the setup page, refresh its live chart so
-      // lengths flip to mm right away instead of after a redraw.
-      if (lineNorm) scheduleLineProfile();
     }
 
     function clearCalibScale() {
@@ -2613,7 +2204,6 @@
       updateCalibInfo();
       drawCalibCanvas();
       renderCalibState();
-      if (lineNorm) scheduleLineProfile();
     }
 
     function renderCalibState() {
@@ -2678,22 +2268,19 @@
 
       document.getElementById(fileNameId).textContent = file.name;
 
-      // A new ref/test invalidates the diff preview shared by Line Profile and
-      // ROI Selection: rebuild it if both images are present, otherwise fall
-      // back to each card's placeholder. The Quick ROI and Compare Regions
-      // (Signal/Background boxes) are deliberately kept, not wiped -- they're
-      // normalized coordinates, so as long as the new pair is framed the same
-      // way as the last one (same locked-down camera setup), the box still
-      // lands in the right place and you don't have to redraw it for every
-      // new test shot. See reapplyRoiToNewCanvas(). Use "Clear ROI" / "Clear
-      // All" to drop them manually if a swap changes the framing.
+      // A new ref/test invalidates the diff preview used by ROI Selection: rebuild
+      // it if both images are present, otherwise fall back to the placeholder. The
+      // Quick ROI and Compare Regions (Signal/Background boxes) are deliberately
+      // kept, not wiped -- they're normalized coordinates, so as long as the new
+      // pair is framed the same way as the last one (same locked-down camera
+      // setup), the box still lands in the right place and you don't have to
+      // redraw it for every new test shot. See reapplyRoiToNewCanvas(). Use
+      // "Clear ROI" / "Clear All" to drop them manually if a swap changes the framing.
       if (inputEl === refInput || inputEl === testInput) {
         if (refInput.files.length && testInput.files.length) {
           fetchDiffPreview();
         } else {
-          resetLineCanvas();
           resetRoiCanvas();
-          setLineBgStatus('Upload both Reference and Test first.');
           setRoiBgStatus('Upload both Reference and Test first.');
         }
       }
@@ -2709,8 +2296,6 @@
       reader.readAsDataURL(file);
 
       updateAnalyzeEnabled();
-      // A new image changes the diff - refresh whatever is drawn, live.
-      if (lineNorm) scheduleLineProfile();
     }
 
     setupZone('refZone', refInput, 'refPreviewBox', 'refFileName');
@@ -2950,7 +2535,7 @@
     // ===== Measure tool (single-analysis Grayscale/Color images) =====
     // Free-standing ruler: drag as many lines as you want on the result image, see
     // each one's length live (mm once a Scale is set, else px). Independent of
-    // ROI/Line Profile -- this is just quick ad-hoc measurement (e.g. jet visible
+    // ROI selection -- this is just quick ad-hoc measurement (e.g. jet visible
     // length), and unlike the ROI box overlay it gets baked into the pixels on
     // download (see bakeMeasureIntoDataURL), since the whole point is to keep a
     // record of what was measured.
@@ -2981,7 +2566,7 @@
       };
     }
     // Physical length in the diff-resolution image (same pixel space the server's
-    // own peak/mean/coverage and Line Profile numbers are computed in).
+    // own peak/mean/coverage numbers are computed in).
     function measureLengthPx(imgEl, norm) {
       const ds = getDiffPixelSize(imgEl.naturalWidth, imgEl.naturalHeight);
       return Math.hypot((norm.x1 - norm.x0) * ds.w, (norm.y1 - norm.y0) * ds.h);
@@ -3440,7 +3025,7 @@
     // These (gas type, flow rate, camera/lens settings, distances...) usually stay the same
     // across many runs in a row, so losing them on every page refresh is just friction.
     // Deliberately scoped to just these metadata fields -- not ref/test files or any
-    // ROI/line-profile state, which are tied to a specific image pair and shouldn't persist.
+    // ROI state, which is tied to a specific image pair and shouldn't persist.
     const PERSISTED_FIELD_IDS = [
       'gasType', 'flowRate', 'plasmaStatus', 'plasmaCond',
       'camType', 'focusSetting', 'iso', 'shutter', 'aperture', 'nozDist', 'lighting', 'notes',
@@ -3623,18 +3208,12 @@
       }
 
       // Send whatever is currently drawn so the server logs it under this
-      // run's run_id - the single commit point for all three CSVs.
+      // run's run_id - the single commit point for both CSVs.
       if (multiRois.length) {
         fd.append('rois', JSON.stringify(multiRois.map(m => ({
           name: m.name, role: m.role,
           x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
         }))));
-      }
-      if (lineNorm) {
-        fd.append('line', JSON.stringify({
-          x0: +lineNorm.x0.toFixed(6), y0: +lineNorm.y0.toFixed(6),
-          x1: +lineNorm.x1.toFixed(6), y1: +lineNorm.y1.toFixed(6),
-        }));
       }
       fd.append('is_control', 'OFF');
 
@@ -3695,7 +3274,6 @@
           imageW: data.image_width,
           imageH: data.image_height,
           rois: data.rois,       // /analyze_rois-shaped result, or null
-          line: data.line,       // line profile + echoed x0..y1/denoise, or null
           control: controlResult,  // {runId, stats} if Control Ref 1/2 were both uploaded, else null
           log: logFields,
           display: displayFields,
@@ -3764,8 +3342,8 @@
 
         renderResultTable();
 
-        // Region table + line chart come straight from the /analyze response -
-        // the same values the server just logged under this run_id.
+        // Region table comes straight from the /analyze response - the same
+        // values the server just logged under this run_id.
         const roiPanel = document.getElementById('roiResultPanel');
         if (data.rois) {
           fillRoiTable(data.rois, document.getElementById('roiTableBody'), document.getElementById('roiTableNote'));
@@ -3776,15 +3354,6 @@
           roiPanel.style.display = 'flex';
         } else {
           roiPanel.style.display = 'none';
-        }
-
-        const linePanel = document.getElementById('lineResultPanel');
-        if (data.line) {
-          drawLineChart(data.line, 'lineChartResult');
-          document.getElementById('lineResultHint').textContent = lineProfileSummary(data.line);
-          linePanel.style.display = 'flex';
-        } else {
-          linePanel.style.display = 'none';
         }
 
         statusEl.textContent = 'Analysis complete.';
@@ -3828,10 +3397,6 @@
         name: m.name, role: m.role,
         x: +m.x.toFixed(6), y: +m.y.toFixed(6), w: +m.w.toFixed(6), h: +m.h.toFixed(6),
       }))) : '';
-      const linePayload = lineNorm ? JSON.stringify({
-        x0: +lineNorm.x0.toFixed(6), y0: +lineNorm.y0.toFixed(6),
-        x1: +lineNorm.x1.toFixed(6), y1: +lineNorm.y1.toFixed(6),
-      }) : '';
 
       const sharedFields = {
         gas_type: document.getElementById('gasType').value,
@@ -3864,7 +3429,6 @@
           fd.append('roi_h', effectiveRoi.h.toFixed(6));
         }
         if (roisPayload) fd.append('rois', roisPayload);
-        if (linePayload) fd.append('line', linePayload);
         fd.append('is_control', 'OFF');
         fd.append('plasma_status', plasmaStatus);
         Object.entries(sharedFields).forEach(([key, val]) => fd.append(key, val));
@@ -3909,8 +3473,8 @@
       try {
         // Used to force a >=1.1s sleep between these three requests: the server's
         // run_id had only 1-second resolution, so firing them back-to-back risked two
-        // landing on the identical run_id and scrambling which roi_regions.csv/
-        // line_profiles.csv rows belonged to which run once joined back by run_id.
+        // landing on the identical run_id and scrambling which roi_regions.csv
+        // rows belonged to which run once joined back by run_id.
         // run_id is now minted with microsecond resolution server-side, so that
         // collision can no longer happen and the artificial delay was pure dead time
         // (up to ~2.2s per Compare Analyze) -- removed. Still sequential (not
@@ -4245,20 +3809,6 @@
         wholePanel.style.display = 'flex';
       }
 
-      const linePanel = document.getElementById('compareLinePanel');
-      if (dataOff.line && dataOn.line) {
-        // Shared Y scale across both charts so OFF vs ON peak heights compare directly.
-        const sharedYMax = Math.max(10,
-          ...(dataOff.line.values || []), ...(dataOff.line.smoothed || []),
-          ...(dataOn.line.values || []), ...(dataOn.line.smoothed || []));
-        drawLineChart(dataOff.line, 'compareLineChartOff', sharedYMax);
-        drawLineChart(dataOn.line, 'compareLineChartOn', sharedYMax);
-        document.getElementById('compareLineOffHint').textContent = lineProfileSummary(dataOff.line);
-        document.getElementById('compareLineOnHint').textContent = lineProfileSummary(dataOn.line);
-        linePanel.style.display = 'flex';
-      } else {
-        linePanel.style.display = 'none';
-      }
     }
 
     document.getElementById('compareBackBtn').onclick = () => {
@@ -4488,21 +4038,6 @@
           roiRows
         ));
 
-        // One row per run (OFF, ON) if a line was drawn -- same columns as
-        // Single mode's line_profiles.csv, so both join the same way.
-        if (off.line && on.line) {
-          zip.file("line_profiles.csv", makeCsv(
-            ["run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise",
-             "px_per_mm", "length_mm", "width_mm"],
-            [off, on].map(r => [
-              r.run_id, r.line.x0, r.line.y0, r.line.x1, r.line.y1, r.line.length_px,
-              r.line.peak, r.line.mean, r.line.width_px, r.line.denoise ? 'ON' : 'OFF',
-              d.calibPxPerMm ? +d.calibPxPerMm.toFixed(4) : '',
-              pxToMm(r.line.length_px, d.calibPxPerMm), pxToMm(r.line.width_px, d.calibPxPerMm),
-            ])
-          ));
-        }
-
         const blob = await zip.generateAsync({ type: "blob" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -4637,9 +4172,9 @@
           }
         }
 
-        // Three CSVs with ONLY this run's rows, same columns and run_id as the
-        // server's accumulating runs.csv / roi_regions.csv / line_profiles.csv,
-        // so the ZIP is self-contained and joins cleanly with the project logs.
+        // Two CSVs with ONLY this run's rows, same columns and run_id as the
+        // server's accumulating runs.csv / roi_regions.csv, so the ZIP is
+        // self-contained and joins cleanly with the project logs.
         const csvEsc = v => `"${(v === null || v === undefined ? '' : v).toString().replace(/"/g, '""')}"`;
         const makeCsv = (header, rows) =>
           [header.join(','), ...rows.map(r => r.map(csvEsc).join(','))].join('\n');
@@ -4665,16 +4200,6 @@
           ["run_id", "roi_name", "role", "mean", "peak", "std", "coverage", "snr_mean", "snr_std"],
           (cad.rois ? cad.rois.rois : []).map(r =>
             [runId, r.name, r.role, r.mean, r.peak, r.std, r.coverage, r.snr_mean, r.snr_std])
-        ));
-
-        const li = cad.line;
-        zip.file("line_profiles.csv", makeCsv(
-          ["run_id", "x0", "y0", "x1", "y1", "length_px", "peak", "mean", "width_px", "denoise",
-           "px_per_mm", "length_mm", "width_mm"],
-          li ? [[runId, li.x0, li.y0, li.x1, li.y1, li.length_px, li.peak, li.mean,
-                 li.width_px, li.denoise ? 'ON' : 'OFF',
-                 cad.calibPxPerMm ? +cad.calibPxPerMm.toFixed(4) : '',
-                 pxToMm(li.length_px, cad.calibPxPerMm), pxToMm(li.width_px, cad.calibPxPerMm)]] : []
         ));
 
         const blob = await zip.generateAsync({ type: "blob" });

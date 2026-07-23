@@ -7,11 +7,10 @@ Run from the project root (the folder that contains main.py and static/):
     python tests/test_bos.py          # plain runner, no pytest needed
 
 The endpoint tests redirect the app's CSV log paths to a temporary folder, so
-running the suite never appends to your real runs.csv / roi_regions.csv /
-line_profiles.csv.
+running the suite never appends to your real runs.csv / roi_regions.csv.
 
-Covers: the diff pipeline, alignment safety on odd inputs, line-profile math,
-ROI/SNR stats, and every HTTP endpoint including the graceful-error paths.
+Covers: the diff pipeline, alignment safety on odd inputs, ROI/SNR stats, and
+every HTTP endpoint including the graceful-error paths.
 """
 
 import importlib.util
@@ -38,7 +37,6 @@ _spec.loader.exec_module(m)
 _TMP = tempfile.mkdtemp(prefix="bos_tests_")
 m.RUNS_FILE = os.path.join(_TMP, "runs.csv")
 m.ROI_REGIONS_FILE = os.path.join(_TMP, "roi_regions.csv")
-m.LINE_PROFILES_FILE = os.path.join(_TMP, "line_profiles.csv")
 
 _RNG = np.random.default_rng(1234)
 
@@ -186,40 +184,6 @@ def test_run_bos_stats_match_manual_roi():
 
 
 # ---------------------------------------------------------------------------
-# sample_line_profile
-# ---------------------------------------------------------------------------
-def test_line_profile_anchors_and_peak_consistency():
-    ref, test, band_px = _pair_with_band()
-    diff, _ = m.compute_diff(ref, test, None, align=True, denoise=True)
-    lp = m.sample_line_profile(diff, 0.1, 0.5, 0.9, 0.5)
-    for k in ("peak", "mean", "length_px", "width_px", "peak_index",
-              "baseline", "half_max", "width_lo", "width_hi", "values", "smoothed", "samples"):
-        assert k in lp, k
-    # peak label must equal the smoothed value at the marked index (chart matches numbers)
-    assert lp["peak"] == int(round(lp["smoothed"][lp["peak_index"]]))
-    # width band brackets the peak
-    assert 0 <= lp["width_lo"] <= lp["peak_index"] <= lp["width_hi"] < lp["samples"]
-    # measured width is in the right neighbourhood of the real band
-    assert abs(lp["width_px"] - band_px) <= max(6, 0.4 * band_px)
-
-
-def test_line_profile_zero_length_raises():
-    diff, _ = m.compute_diff(*_pair_with_band()[:2], roi_norm=None)
-    try:
-        m.sample_line_profile(diff, 0.5, 0.5, 0.5, 0.5)
-        assert False, "expected ValueError"
-    except ValueError:
-        pass
-
-
-def test_line_profile_all_zero_diff_is_finite():
-    same = _png(_noise(200, 300))
-    diff, _ = m.compute_diff(same, same, None)
-    lp = m.sample_line_profile(diff, 0.1, 0.5, 0.9, 0.5)
-    assert np.isfinite(lp["peak"]) and np.isfinite(lp["width_px"])
-
-
-# ---------------------------------------------------------------------------
 # analyze_roi_list / _crop_diff
 # ---------------------------------------------------------------------------
 def test_roi_list_snr_and_background():
@@ -263,18 +227,17 @@ def test_endpoints():
     r = c.get("/")
     assert r.status_code == 200 and "PlasmaFlow-BOS" in r.text
 
-    # happy path with ROI + rois + line
+    # happy path with ROI + rois
     r = c.post("/analyze",
                files={"reference": ("r.png", ref, "image/png"), "test": ("t.png", test, "image/png")},
                data={"align": "true", "denoise": "true",
                      "roi_x": "0.45", "roi_y": "0.28", "roi_w": "0.12", "roi_h": "0.42",
                      "rois": '[{"name":"jet","role":"signal","x":0.45,"y":0.28,"w":0.12,"h":0.42},'
-                             '{"name":"bg","role":"background","x":0.02,"y":0.02,"w":0.2,"h":0.2}]',
-                     "line": '{"x0":0.1,"y0":0.5,"x1":0.9,"y1":0.5}'})
+                             '{"name":"bg","role":"background","x":0.02,"y":0.02,"w":0.2,"h":0.2}]'})
     assert r.status_code == 200
     d = r.json()
     assert re.match(r"^\d{8}_\d{6}_\d{6}$", d["run_id"])  # microsecond run id
-    assert d["rois"] is not None and d["line"] is not None
+    assert d["rois"] is not None
 
     # two rapid calls get unique run ids
     ids = set()
@@ -289,9 +252,6 @@ def test_endpoints():
     assert c.post("/analyze", files=bad).status_code == 400
     good = {"reference": ("r.png", ref, "image/png"), "test": ("t.png", test, "image/png")}
     assert c.post("/analyze", files=good, data={"rois": "{bad"}).status_code == 400
-    assert c.post("/analyze", files=good, data={"line": "nope"}).status_code == 400
-    assert c.post("/line_profile", files=good,
-                  data={"x0": "0.5", "y0": "0.5", "x1": "0.5", "y1": "0.5"}).status_code == 400
 
     # clamped ROI and extreme sliders still succeed
     assert c.post("/analyze", files=good,

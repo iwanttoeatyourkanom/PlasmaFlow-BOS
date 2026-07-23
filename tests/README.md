@@ -5,8 +5,8 @@ with `main.py` and `static/`).
 
 ## Backend (Python)
 
-Covers the diff pipeline, alignment safety on odd inputs, line-profile math,
-ROI/SNR stats, and every HTTP endpoint including the graceful-error paths.
+Covers the diff pipeline, alignment safety on odd inputs, ROI/SNR stats, and
+every HTTP endpoint including the graceful-error paths.
 
 ```
 python tests/test_bos.py        # plain runner, no extra tools
@@ -14,7 +14,7 @@ python -m pytest tests          # if you have pytest
 ```
 
 The suite redirects the app's CSV log paths to a temp folder, so running it
-never appends to your real `runs.csv` / `roi_regions.csv` / `line_profiles.csv`.
+never appends to your real `runs.csv` / `roi_regions.csv`.
 Endpoint tests need `httpx` (`pip install httpx`); without it they skip.
 
 ## Frontend (JavaScript)
